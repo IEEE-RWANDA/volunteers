@@ -3,7 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { accountRoster } from "./session";
 import { listIntakeRecords, readIntakeFile, saveIntakeFile } from "./volunteer-store";
 
-type Volunteer = { email: string; name: string; committee?: string };
+type Volunteer = { email: string; name: string; committee?: string; officerTitle?: string };
 
 export async function roster() {
   const accounts = await accountRoster();
@@ -28,7 +28,7 @@ export async function roster() {
     return data ? JSON.parse(new TextDecoder().decode(data)) as Volunteer : null;
   }));
   for (const member of saved) {
-    if (member) members.set(member.email, member);
+    if (member) members.set(member.email, { ...member, officerTitle: members.get(member.email)?.officerTitle });
   }
   return [...members.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

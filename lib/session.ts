@@ -6,7 +6,10 @@ const cookieName = "volunteer_session";
 const lifetime = 8 * 60 * 60;
 const hash = (value: string) => createHash("sha256").update(value).digest();
 
-type Account = { email: string; name: string; committee?: string; role?: "admin" | "lead" | "volunteer" };
+const officerTitles = ["Chair", "Vice Chair", "Secretary", "Treasurer"] as const;
+type OfficerTitle = typeof officerTitles[number];
+
+type Account = { officerTitle?: OfficerTitle; email: string; name: string; committee?: string; role?: "admin" | "lead" | "volunteer" };
 type PreviewAccount = Account & { password: string };
 
 function previewAccounts(): PreviewAccount[] {
@@ -51,15 +54,29 @@ function accounts(): Account[] {
     if (roster.has(email)) throw new Error("Duplicate volunteer account");
     roster.set(email, { email, name: account.name, committee: account.committee, role: account.role });
   }
+  const officers: unknown = JSON.parse(process.env.VOLUNTEER_OFFICERS ?? "[]");
+  if (!Array.isArray(officers)) throw new Error("VOLUNTEER_OFFICERS must be an array");
+  const assignedTitles = new Set<OfficerTitle>();
+  const assignedEmails = new Set<string>();
+  for (const officer of officers) {
+    if (!officer || typeof officer.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(officer.email) ||
+        typeof officer.name !== "string" || !officer.name.trim() ||
+        !officerTitles.includes(officer.title) || assignedTitles.has(officer.title)) throw new Error("Invalid volunteer officer");
+    const email = officer.email.toLowerCase();
+    if (assignedEmails.has(email)) throw new Error("Duplicate volunteer officer");
+    assignedEmails.add(email);
+    assignedTitles.add(officer.title);
+    roster.set(email, { ...roster.get(email), email, name: officer.name, officerTitle: officer.title, role: "admin" });
+  }
   return [...roster.values()];
 }
 
 export async function accountRoster() {
-  const roster = new Map(accounts().map(({ email, name, committee }) => [email, { email, name, committee }]));
+  const roster = new Map(accounts().map(({ email, name, committee, officerTitle }) => [email, { email, name, committee, officerTitle }]));
   if (process.env.NODE_ENV !== "development") {
     for (const entry of await accessRequests()) {
       if (entry.decision?.status === "approved" && !roster.has(entry.email)) {
-        roster.set(entry.email, { email: entry.email, name: entry.name, committee: undefined });
+        roster.set(entry.email, { email: entry.email, name: entry.name, committee: undefined, officerTitle: undefined });
       }
     }
   }

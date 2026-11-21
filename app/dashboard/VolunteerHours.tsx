@@ -48,7 +48,9 @@ export default async function VolunteerHours({ email, status }: { email: string;
               <p className="wrap-anywhere font-medium text-navy">
                 {volunteer.name}{volunteer.email === email && <span className="ms-2 text-xs text-ink-soft">(you)</span>}
               </p>
-              {volunteer.committee && <p className="mt-1 text-sm text-ink-soft">{volunteer.committee}</p>}
+              {(volunteer.officerTitle || volunteer.committee) && (
+                <p className="mt-1 text-sm text-ink-soft">{[volunteer.officerTitle, volunteer.committee].filter(Boolean).join(" · ")}</p>
+              )}
             </li>
           ))}
         </ul>

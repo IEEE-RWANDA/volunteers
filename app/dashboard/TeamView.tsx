@@ -56,7 +56,9 @@ export default async function TeamView({ access, status }: { access: Access; sta
                         <input className="size-4 shrink-0 accent-blue" type="checkbox" name="volunteer" value={member.email} />
                         <span className="min-w-0 flex-1">
                           <span className="block wrap-anywhere font-semibold text-navy">{member.name}</span>
-                          {member.committee && <span className="block text-xs text-ink-soft">{member.committee}</span>}
+                          {(member.officerTitle || member.committee) && (
+                            <span className="block text-xs text-ink-soft">{[member.officerTitle, member.committee].filter(Boolean).join(" · ")}</span>
+                          )}
                         </span>
                         <span className="shrink-0 text-sm font-semibold text-navy">{formatHours(totals.get(member.email) ?? 0)}</span>
                       </label>
