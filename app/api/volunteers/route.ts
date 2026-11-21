@@ -125,7 +125,6 @@ export async function POST(request: Request) {
   const date = field("date");
   const end = field("end");
   const location = field("location");
-  const registration = field("registration");
   let amount: string | undefined;
   let fundAllocations: Submission["fundAllocations"];
   const vtools = field("vtools");
@@ -139,17 +138,15 @@ export async function POST(request: Request) {
   if (kind === "event" && (!validDate(end, true) || end <= date || !location || location.length > 250)) {
     return bad("Enter an end time after the start time and a location.");
   }
-  if (kind === "event" && registration) {
-    if (registration.length > 1000 || !URL.canParse(registration) || !["http:", "https:"].includes(new URL(registration).protocol)) {
-      return bad("Enter a registration link starting with http:// or https://.");
-    }
-  }
+  if (!webLink(vtools)) return bad("Enter a valid vTools event link starting with https:// or http://.");
   if (kind === "event" && (!committee || committee.length > 150)) return bad("Enter the organizing committee.");
+  if (kind === "event" && field("acknowledgeVtools") !== "yes") {
+    return bad("Confirm the IEEE Rwanda collaborator and contact email in vTools.");
+  }
   if (kind === "funding") {
     if (field("acknowledgeReceipts") !== "yes") return bad("Acknowledge the receipts policy before submitting.");
     if (field("acknowledgeReceiptFormat") !== "yes") return bad("Confirm that all receipts will be EBM- or POS-generated.");
     if (!leadVolunteerName || leadVolunteerName.length > 150) return bad("Enter the lead volunteer name.");
-    if (!webLink(vtools)) return bad("Enter a valid vTools event link starting with https:// or http://.");
 
     const chosenFunds = new Set(form.getAll("fund"));
     if (!chosenFunds.size) return bad("Select at least one expected funding source.");
@@ -166,12 +163,16 @@ export async function POST(request: Request) {
     const total = allocationTotal(fundAllocations);
     if (!Number.isSafeInteger(total) || total > 99_999_999_999_999) return bad("The total funding request is too large.");
     amount = formatUsd(total);
-    const chosen = new Set(form.getAll("organizer"));
-    if (!chosen.size) return bad("Select at least one volunteer for the organizing committee.");
+  }
+  const chosen = new Set(form.getAll("organizer"));
+  if (kind === "funding" && !chosen.size) return bad("Select at least one volunteer for the organizing committee.");
+  if (chosen.size) {
     const selected = (await organizerOptions()).filter(member => chosen.has(member.id));
     if (selected.length !== chosen.size) return bad("A selected volunteer is no longer listed. Refresh and select again.");
     organizers = selected.map(({ name, committee }) => ({ name, committee }));
-    committee = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].join(", ") || "Volunteers";
+    if (kind === "funding") {
+      committee = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].join(", ") || "Volunteers";
+    }
   }
 
   const budget = filesFrom(form, "budget");
@@ -179,7 +180,7 @@ export async function POST(request: Request) {
   const approvalEmail = filesFrom(form, "approvalEmail");
   const extraFiles = filesFrom(form, "attachments");
   const files = [...budget, ...invoice, ...approvalEmail];
-  if (kind === "event" && files.length + extraFiles.length) return bad("Event suggestions do not accept attachments.");
+  if (kind === "event" && files.length + extraFiles.length) return bad("Event submissions do not accept attachments.");
   if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || extraFiles.length)) {
     return bad("Attach a funding approval email, a budget expense sheet, and at least one invoice.");
   }
@@ -199,8 +200,8 @@ export async function POST(request: Request) {
 
   const id = randomUUID();
   const record: Submission = {
-    id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date,
-    ...(kind === "event" ? { end, location, registration } : { amount, organizers, leadVolunteerName, vtools, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools,
+    ...(kind === "event" ? { end, location, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const saved: string[] = [];

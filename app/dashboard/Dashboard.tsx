@@ -35,7 +35,7 @@ export default async function Dashboard({ email, params }: { email: string; para
   const funding = current.id === "funding" && !reporting;
   const funds = funding ? await fundsForVolunteer(email) : [];
   const initialFund = funds.find(item => item.id === fund && item.remainingCents > 0)?.id;
-  const organizers = funding ? await organizerOptions() : [];
+  const organizers = funding || current.id === "events" ? await organizerOptions() : [];
   const records = current.id === "overview" || reporting ? await volunteerSubmissions(email) : [];
   const reportStatuses = await fundingReportStatuses(records.filter(record => record.kind === "funding").map(record => record.id));
   const eventCount = records.filter(record => record.kind === "event").length;
@@ -90,7 +90,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                 <span className="workflow-icon nav-glyph nav-glyph-1" aria-hidden="true" />
                 <span className="min-w-0">
                   <span className="workflow-title">Add an event</span>
-                  <span className="workflow-description">Submit dates, venue, and registration details.</span>
+                  <span className="workflow-description">Submit dates, venue, and the vTools event link.</span>
                 </span>
                 <span className="workflow-arrow" aria-hidden="true">→</span>
               </Link>
@@ -123,7 +123,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                     <li key={record.id} className="submission-row">
                       <div className="min-w-0">
                         <strong className="wrap-anywhere text-navy">{record.title}</strong>
-                        <p className="mt-1 text-sm text-ink-soft">{record.kind === "event" ? "Event suggestion" : "Funding request"} · {record.date.replace("T", " ")}</p>
+                        <p className="mt-1 text-sm text-ink-soft">{record.kind === "event" ? "Event submission" : "Funding request"} · {record.date.replace("T", " ")}</p>
                         {record.leadVolunteerName && (
                           <p className="mt-1 wrap-anywhere text-sm text-ink-soft">
                             <strong className="text-navy">Lead volunteer</strong> · {record.leadVolunteerName} · {record.email}
@@ -132,7 +132,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                         {(record.fundingSource || record.fundAllocations?.length || record.listedFunds?.length) ? (
                           <p className="mt-1 wrap-anywhere text-sm text-ink-soft">Funding sources · {[...(record.fundAllocations?.map(item => `${item.name} (${formatUsd(item.cents)})`) ?? record.listedFunds?.map(item => item.name) ?? []), record.fundingSource].filter(Boolean).join(", ")}</p>
                         ) : null}
-                        {record.organizers?.length ? <p className="mt-1 wrap-anywhere text-sm text-ink-soft">Organizers: {record.organizers.map(member => member.name).join(", ")}</p> : null}
+                        {record.organizers?.length ? <p className="mt-1 wrap-anywhere text-sm text-ink-soft">{record.kind === "event" ? "Volunteers" : "Organizers"}: {record.organizers.map(member => member.name).join(", ")}</p> : null}
                       </div>
                       <span className="shrink-0 rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">{reportStatuses.get(record.id)?.label ?? (record.releasedAt ? "Funds released" : record.approvedAt ? "Approved" : "Submitted")}</span>
                     </li>
@@ -179,12 +179,12 @@ export default async function Dashboard({ email, params }: { email: string; para
               ) : (
                 <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
                   <section className="panel">
-                    <h2 className="panel-title">Suggest an event</h2>
-                    <VolunteerForm kind="event" contactEmail={email} />
+                    <h2 className="panel-title">Event submission</h2>
+                    <VolunteerForm kind="event" contactEmail={email} organizers={organizers} />
                   </section>
                   <aside className="panel">
                     <h2 className="panel-title">Public calendar</h2>
-                    <p className="my-3 text-ink-soft">Event suggestions go to IEEE Rwanda for review. Approved events can be added to the public calendar.</p>
+                    <p className="my-3 text-ink-soft">Event submissions go to IEEE Rwanda for review. Approved events can be added to the public calendar.</p>
                     <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
                   </aside>
                 </div>

@@ -17,6 +17,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   const [selectedFunds, setSelectedFunds] = useState<string[]>(initialFund ? [initialFund] : []);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
   const funding = kind === "funding";
+  const committees = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].sort();
   const fundOptions = funds.filter(fund => fund.remainingCents > 0 || selectedFunds.includes(fund.id)).map(fund => ({
     id: fund.id, name: fund.name, committee: `${formatUsd(fund.remainingCents)} left`,
   }));
@@ -75,7 +76,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   }
 
   return (
-    <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event suggestion"}>
+    <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event submission"}>
       <input type="hidden" name="kind" value={kind} />
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
@@ -88,7 +89,10 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             {!funding && (
               <label className="block min-w-0 font-semibold">
                 Organizing committee
-                <input name="committee" className={field} maxLength={150} required />
+                <input name="committee" list="event-committees" className={field} maxLength={150} required />
+                <datalist id="event-committees">
+                  {committees.map(committee => <option key={committee} value={committee} />)}
+                </datalist>
               </label>
             )}
             {funding && (
@@ -112,11 +116,9 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
               </label>
             )}
           </div>
-          {funding && (
-            <RequestPicker name="organizer" label="Organizing committee" placeholder="Select volunteers"
-              searchLabel="Search by name or committee" emptyMessage="An admin needs to add volunteers to the directory first."
-              options={organizers} selectedIds={selection} onChange={setSelection} field={field} />
-          )}
+          <RequestPicker name="organizer" label={funding ? "Organizing committee" : "Volunteers"} placeholder="Select volunteers"
+            searchLabel="Search by name or committee" emptyMessage="An admin needs to add volunteers to the directory first."
+            options={organizers} selectedIds={selection} onChange={setSelection} field={field} />
           {funding && (
             <RequestPicker
               name="fund" label="Expected funding sources" placeholder="Select funds" searchLabel="Search funds"
@@ -148,8 +150,8 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
                 <input name="location" className={field} maxLength={250} required />
               </label>
               <label className="block font-semibold">
-                Registration link (optional)
-                <input name="registration" type="url" className={field} maxLength={1000} />
+                vTools event link
+                <input name="vtools" type="url" className={field} maxLength={1000} required />
               </label>
             </>
           )}
@@ -199,9 +201,15 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           </section>
         )}
       </div>
-      <div className={funding ? "flex justify-center" : undefined}>
+      {!funding && (
+        <label className="flex items-start gap-3 rounded-md border border-line bg-paper-2 p-3">
+          <input type="checkbox" name="acknowledgeVtools" value="yes" required className="mt-0.5 size-4 shrink-0 accent-blue" />
+          <span>I have added IEEE Rwanda as a collaborator in vTools and set <strong>gentille.uwera@ieee.org</strong> as the contact email. I understand that Gentille Uwera will be contacted during funding clearance to confirm the collaborator and contact email in vTools.</span>
+        </label>
+      )}
+      <div className="flex justify-center">
         <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!organizers.length || !fundOptions.length))}>
-          {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event suggestion"}
+          {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event"}
         </button>
       </div>
       {result.error && <p role="alert" className="font-semibold text-red-700">{result.error}</p>}

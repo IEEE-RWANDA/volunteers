@@ -29,6 +29,7 @@ export type Submission = {
   location?: string;
   registration?: string;
   vtools?: string;
+  vtoolsAcknowledgedAt?: string;
   amount?: string;
   approvedAt?: string;
   releasedAt?: string;
