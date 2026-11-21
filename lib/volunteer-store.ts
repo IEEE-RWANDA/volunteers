@@ -83,12 +83,12 @@ export const submissionIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9
 
 async function withFundingStatus(record: Submission, ledger?: AllocatedRelease[]): Promise<Submission> {
   if (record.kind !== "funding") return record;
-  const [approval, release] = await Promise.all([
+  const [approval, legacyRelease, releases] = await Promise.all([
     readIntakeJson<FundingApproval>(`funding-approvals/${record.id}.json`),
-    record.fundAllocations?.length
-      ? (ledger ? Promise.resolve(ledger) : allocatedReleases()).then(entries => entries.find(entry => entry.requestId === record.id))
-      : readIntakeJson<FundingRelease>(`funding-releases/${record.id}.json`),
+    readIntakeJson<FundingRelease>(`funding-releases/${record.id}.json`),
+    ledger ?? allocatedReleases(),
   ]);
+  const release = releases.find(entry => entry.requestId === record.id) ?? legacyRelease;
   return { ...record, ...approval, ...release };
 }
 
@@ -103,28 +103,21 @@ export async function approveFunding(id: string, email: string) {
   await saveIntakeFile(`funding-approvals/${id}.json`, JSON.stringify(approval));
 }
 
-export async function releaseFunding(id: string, email: string, date: string, amount: string) {
-  const release: FundingRelease = {
-    releasedAt: date, releasedAmount: amount, recordedAt: new Date().toISOString(), recordedBy: email,
-  };
-  await saveIntakeFile(`funding-releases/${id}.json`, JSON.stringify(release));
-}
-
 async function submissions() {
   const paths = await listIntakeRecords("records");
   const records = await Promise.all(paths.map(path => readIntakeJson<Submission>(path)));
   return records.filter((record) => record !== null).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 }
 
-export async function volunteerSubmissions(email: string) {
+export async function volunteerSubmissions(email: string, releases?: AllocatedRelease[]) {
   const records = (await submissions()).filter(record => record.submittedBy === email);
-  const ledger = records.some(record => record.fundAllocations?.length) ? await allocatedReleases() : [];
+  const ledger = releases ?? (records.some(record => record.kind === "funding") ? await allocatedReleases() : []);
   return Promise.all(records.map(record => withFundingStatus(record, ledger)));
 }
 
 export async function allFundingRequests() {
   const records = (await submissions()).filter(record => record.kind === "funding");
-  const ledger = records.some(record => record.fundAllocations?.length) ? await allocatedReleases() : [];
+  const ledger = records.length ? await allocatedReleases() : [];
   return Promise.all(records.map(record => withFundingStatus(record, ledger)));
 }
 

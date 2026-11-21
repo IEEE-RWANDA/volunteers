@@ -1,11 +1,13 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import type { OrganizerOption } from "@/lib/volunteer-intake";
 
-export default function RequestPicker({ name, label, placeholder, searchLabel, emptyMessage, options, selectedIds, onChange, field }: {
+export default function RequestPicker({ name, label, placeholder, searchLabel, emptyMessage, options, selectedIds, onChange, field, renderSelected, summary }: {
   name: string; label: string; placeholder: string; searchLabel: string; emptyMessage: string;
   options: OrganizerOption[]; selectedIds: string[]; onChange: (ids: string[]) => void; field: string;
+  renderSelected?: (option: OrganizerOption) => ReactNode;
+  summary?: (option: OrganizerOption) => string;
 }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -25,7 +27,7 @@ export default function RequestPicker({ name, label, placeholder, searchLabel, e
         onClick={() => dialog.current?.showModal()}
       >
         <span id={`${id}-value`} className="min-w-0 wrap-anywhere">
-          {selected.length ? selected.map(member => member.name).join(", ") : placeholder}
+          {selected.length ? selected.map(member => summary?.(member) ?? member.name).join(", ") : placeholder}
         </span>
         <svg aria-hidden="true" className="size-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="m4 6 4 4 4-4" />
@@ -71,6 +73,7 @@ export default function RequestPicker({ name, label, placeholder, searchLabel, e
                     {member.committee && <span className="block wrap-anywhere text-xs text-ink-soft">{member.committee}</span>}
                   </span>
                 </label>
+                {selectedIds.includes(member.id) && renderSelected?.(member)}
               </li>
             ))}
             {!matches.length && <li className="px-3 py-3 text-ink-soft">No results match your search.</li>}

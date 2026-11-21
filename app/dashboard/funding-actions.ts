@@ -3,10 +3,10 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getTeamAccess } from "@/lib/session";
-import { approveFunding, fundingRequest, releaseFunding, saveIntakeFile } from "@/lib/volunteer-store";
-import { releaseAllocatedFunds } from "@/lib/listed-funds";
-import { usdCents } from "@/lib/fund-amounts";
+import { accountRoster, getTeamAccess } from "@/lib/session";
+import { approveFunding, fundingRequest, saveIntakeFile } from "@/lib/volunteer-store";
+import { allocationTotal, releaseFunding } from "@/lib/listed-funds";
+import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import { kigaliToday } from "@/lib/volunteer-hours";
 
 function finish(status: string): never {
@@ -19,6 +19,7 @@ export async function approveRequest(form: FormData) {
   if (access?.role !== "admin") redirect("/dashboard");
   const request = await fundingRequest(String(form.get("requestId") ?? ""));
   if (!request || request.approvedAt || request.releasedAt) finish("funding-state");
+  if (request.receiptsAcknowledgedAt && form.get("invoiceMatches") !== "yes") finish("funding-invoice");
   try {
     await approveFunding(request.id, access.email);
   } catch {
@@ -36,22 +37,16 @@ export async function recordRelease(form: FormData) {
   const amount = String(form.get("amount") ?? "").trim();
   const currency = String(form.get("currency") ?? "").trim().toUpperCase();
   const date = String(form.get("date") ?? "");
+  const today = kigaliToday();
   const parsed = new Date(date + "T00:00:00Z");
   if (!/^\d{4}-\d\d-\d\d$/.test(date) || !Number.isFinite(parsed.getTime()) ||
-      !parsed.toISOString().startsWith(date) || date > kigaliToday()) finish("funding-invalid");
-  if (request.fundAllocations?.length) {
-    const status = await releaseAllocatedFunds(request, access.email, date).catch(() => "funding-write");
-    finish(status);
-  }
-  if (!usdCents(amount) || !Intl.supportedValuesOf("currency").includes(currency)) finish("funding-invalid");
-
-  const formatted = new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(Number(amount)) + " " + currency;
-  try {
-    await releaseFunding(request.id, access.email, date, formatted);
-  } catch {
-    finish("funding-write");
-  }
-  finish("funding-released");
+      !parsed.toISOString().startsWith(date) || date > today) finish("funding-invalid");
+  const allocations = request.fundAllocations ?? [];
+  if (!allocations.length && (!usdCents(amount) || !Intl.supportedValuesOf("currency").includes(currency))) finish("funding-invalid");
+  const formatted = allocations.length ? formatUsd(allocationTotal(allocations))
+    : new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(Number(amount)) + " " + currency;
+  const status = await releaseFunding(request, access.email, date, formatted, today).catch(() => "funding-write");
+  finish(status);
 }
 
 
@@ -61,10 +56,11 @@ export async function listFund(form: FormData) {
   const name = String(form.get("name") ?? "").trim();
   const usd = String(form.get("amount") ?? "").trim();
   const cents = usdCents(usd);
-  if (!name || name.length > 150 || !cents) finish("fund-list-invalid");
+  const volunteerEmail = String(form.get("volunteerEmail") ?? "");
+  if (!name || name.length > 150 || !cents || !(await accountRoster()).some(account => account.email === volunteerEmail)) finish("fund-list-invalid");
   const id = randomUUID();
   try {
-    await saveIntakeFile(`listed-funds/${id}.json`, JSON.stringify({ id, name, cents }));
+    await saveIntakeFile(`listed-funds/${id}.json`, JSON.stringify({ id, name, cents, volunteerEmail }));
   } catch {
     finish("funding-write");
   }

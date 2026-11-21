@@ -27,7 +27,7 @@ export default function FundingReportForm({ requests, selected, revision }: { re
         setError(result?.error ?? "The report could not be saved. Try again.");
         return;
       }
-      router.push("/dashboard?section=funding&report=saved");
+      router.push("/dashboard?section=funding&tab=reporting&report=saved");
       router.refresh();
     } catch {
       setError("The site could not be reached. Try again.");
@@ -62,10 +62,12 @@ export default function FundingReportForm({ requests, selected, revision }: { re
       <label className="block text-sm font-semibold">One-page activity report (PDF)
         <input className="login-input" type="file" name="summary" accept=".pdf" required />
       </label>
-      <p className="text-sm text-ink-soft">Use the PDF to summarize what took place, the outcomes, and any budget differences. Files are private. Up to five files totaling 4 MB.</p>
-      <button className="btn btn-primary disabled:opacity-60" type="submit" disabled={pending}>
-        {pending ? "Submitting…" : revision ? "Submit revised report" : "Submit funding report"}
-      </button>
+      <div className="flex flex-col items-center gap-4 text-center">
+        <p className="text-sm text-ink-soft">Use the PDF to summarize what took place, the outcomes, and any budget differences.</p>
+        <button className="btn btn-primary disabled:opacity-60" type="submit" disabled={pending}>
+          {pending ? "Submitting…" : revision ? "Submit revised report" : "Submit funding report"}
+        </button>
+      </div>
       {error && <p role="alert" className="text-sm font-semibold text-red-700">{error}</p>}
     </form>
   );

@@ -1,5 +1,5 @@
 import { formatUsd } from "@/lib/fund-amounts";
-import { listedFunds } from "@/lib/listed-funds";
+import { fundsForVolunteer } from "@/lib/listed-funds";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -21,20 +21,22 @@ const baseNavigation = [
   { id: "volunteers", label: "Volunteers", href: "/dashboard?section=volunteers" },
 ] as const;
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ section?: string; hours?: string; team?: string; report?: string; request?: string; fund?: string }> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ section?: string; hours?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string }> }) {
   const email = await getVolunteer();
   if (!email) redirect("/");
-  const { section, hours, team, report, request, fund } = await searchParams;
+  const { section, hours, team, report, request, fund, tab } = await searchParams;
   const access = await getTeamAccess();
   if (section === "team" && !access) redirect("/dashboard");
   const navigation = access
     ? [...baseNavigation, { id: "team", label: access.role === "admin" ? "Admin" : "My team", href: "/dashboard?section=team" } as const]
     : baseNavigation;
   const current = navigation.find(item => item.id === section) ?? navigation[0];
-  const funds = current.id === "funding" ? await listedFunds() : [];
+  const reporting = current.id === "funding" && (tab === "reporting" || Boolean(request) || report === "saved");
+  const funding = current.id === "funding" && !reporting;
+  const funds = funding ? await fundsForVolunteer(email) : [];
   const initialFund = funds.find(item => item.id === fund && item.remainingCents > 0)?.id;
-  const organizers = current.id === "funding" ? await organizerOptions() : [];
-  const records = current.id === "overview" || current.id === "funding" ? await volunteerSubmissions(email) : [];
+  const organizers = funding ? await organizerOptions() : [];
+  const records = current.id === "overview" || reporting ? await volunteerSubmissions(email) : [];
   const reportStatuses = await fundingReportStatuses(records.filter(record => record.kind === "funding").map(record => record.id));
   const eventCount = records.filter(record => record.kind === "event").length;
 
@@ -144,48 +146,49 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <header className="dashboard-section-header">
               <h1>{current.label}</h1>
             </header>
-            {current.id === "funding" && funds.length > 0 && (
-              <section className="panel" aria-labelledby="listed-funds">
-                <h2 id="listed-funds" className="panel-title">Listed funds</h2>
-                <ul className="mt-3 divide-y divide-line">
+            {current.id === "funding" && (
+              <nav aria-label="Funding and reporting" className="dashboard-nav mb-5">
+                <Link href="/dashboard?section=funding" aria-current={funding ? "page" : undefined}>Funding</Link>
+                <Link href="/dashboard?section=funding&tab=reporting" aria-current={reporting ? "page" : undefined}>Reporting</Link>
+              </nav>
+            )}
+            {funding && (
+              <section className="panel mb-5" aria-labelledby="listed-funds">
+                <h2 id="listed-funds" className="panel-title">Your funds</h2>
+                {funds.length ? <ul className="mt-3 divide-y divide-line">
                   {funds.map(item => (
                     <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                       <span>{item.name} · {formatUsd(item.remainingCents)} left</span>
                       {item.remainingCents > 0 && <Link className="action-link" href={`/dashboard?section=funding&fund=${item.id}#funding-request`}>Request from this fund</Link>}
                     </li>
                   ))}
-                </ul>
+                </ul> : <p className="mt-3 text-sm text-ink-soft">You have no available funding sources listed yet.</p>}
               </section>
             )}
-            {current.id === "funding" && <ReleasedFunds records={records} statuses={reportStatuses} />}
-            {current.id === "volunteers" ? <VolunteerHours email={email} status={hours} /> :
-              current.id === "team" && access ? <TeamView access={access} status={team} /> : (
-              <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
+            {reporting ? (
+              <>
+                <ReleasedFunds records={records} statuses={reportStatuses} />
+                <FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} />
+              </>
+            ) : current.id === "volunteers" ? <VolunteerHours email={email} status={hours} /> :
+              current.id === "team" && access ? <TeamView access={access} status={team} /> : funding ? (
                 <section className="panel">
-                  <h2 id={current.id === "funding" ? "funding-request" : undefined} className="panel-title">{current.id === "events" ? "Suggest an event" : "Submit a funding request"}</h2>
-                  <VolunteerForm key={initialFund ?? current.id} kind={current.id === "events" ? "event" : "funding"} contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds} />
+                  <h2 id="funding-request" className="panel-title">Submit a funding request</h2>
+                  <VolunteerForm key={initialFund ?? "funding"} kind="funding" contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds} />
                 </section>
-                <aside className="panel">
-                  {current.id === "events" ? (
-                    <>
-                      <h2 className="panel-title">Public calendar</h2>
-                      <p className="my-3 text-ink-soft">Event suggestions go to IEEE Rwanda for review. Approved events can be added to the public calendar.</p>
-                      <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="panel-title">Budget and reporting</h2>
-                      <ul className="mt-3 list-disc space-y-3 ps-5 text-ink-soft">
-                        <li>Include quantities, unit costs, currency, and supporting quotes in your budget.</li>
-                        <li>Confirm approval and payment arrangements before committing costs.</li>
-                        <li>Save receipts and proof of payment. Compare actual costs with the approved budget in your report.</li>
-                      </ul>
-                    </>
-                  )}
-                </aside>
-              </div>
+              ) : (
+                <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
+                  <section className="panel">
+                    <h2 className="panel-title">Suggest an event</h2>
+                    <VolunteerForm kind="event" contactEmail={email} />
+                  </section>
+                  <aside className="panel">
+                    <h2 className="panel-title">Public calendar</h2>
+                    <p className="my-3 text-ink-soft">Event suggestions go to IEEE Rwanda for review. Approved events can be added to the public calendar.</p>
+                    <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
+                  </aside>
+                </div>
             )}
-            {current.id === "funding" && <FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} />}
           </>
         )}
       </main>

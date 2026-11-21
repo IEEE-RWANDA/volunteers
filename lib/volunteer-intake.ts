@@ -16,6 +16,9 @@ export type Submission = {
   email: string;
   leadVolunteerName?: string;
   fundingSource?: string;
+  receiptsAcknowledgedAt?: string;
+  receiptFormatAcknowledged?: boolean;
+  invoiceCount?: number;
   fundAllocations?: FundAllocation[];
   listedFunds?: { id: string; name: string }[];
   committee: string;

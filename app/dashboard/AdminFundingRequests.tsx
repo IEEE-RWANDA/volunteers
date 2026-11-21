@@ -1,3 +1,4 @@
+import { accountRoster } from "@/lib/session";
 import { formatUsd } from "@/lib/fund-amounts";
 import { listedFunds } from "@/lib/listed-funds";
 import { allFundingRequests } from "@/lib/volunteer-store";
@@ -5,9 +6,11 @@ import { kigaliToday } from "@/lib/volunteer-hours";
 import { approveRequest, listFund, recordRelease } from "./funding-actions";
 
 const messages: Record<string, { text: string; error?: boolean }> = {
-  "fund-listed": { text: "Fund listed for volunteers." },
-  "fund-list-invalid": { text: "Enter a funding source and a positive USD amount.", error: true },
+  "fund-listed": { text: "Fund assigned to the selected volunteer." },
+  "fund-list-invalid": { text: "Enter a funding source and a positive USD amount, and select a volunteer.", error: true },
   "funding-balance": { text: "A selected fund no longer has enough available. The release was not recorded.", error: true },
+  "funding-receipts": { text: "The volunteer must submit receipts for earlier activities before you release funds for this activity.", error: true },
+  "funding-invoice": { text: "Confirm that the invoices match the requested amount and currency before approving.", error: true },
   "funding-approved": { text: "Funding request approved. Record the release once it has taken place." },
   "funding-released": { text: "Release recorded. The volunteer can now submit their report." },
   "funding-state": { text: "This request is no longer eligible for that action. Check its current status.", error: true },
@@ -16,7 +19,8 @@ const messages: Record<string, { text: string; error?: boolean }> = {
 };
 
 export default async function AdminFundingRequests({ status }: { status?: string }) {
-  const [requests, funds] = await Promise.all([allFundingRequests(), listedFunds()]);
+  const [requests, funds, volunteers] = await Promise.all([allFundingRequests(), listedFunds(), accountRoster()]);
+  const names = new Map(volunteers.map(volunteer => [volunteer.email, volunteer.name]));
   const message = status && Object.hasOwn(messages, status) ? messages[status] : null;
   const today = kigaliToday();
 
@@ -38,11 +42,19 @@ export default async function AdminFundingRequests({ status }: { status?: string
           <label className="block text-sm font-semibold">Amount (USD)
             <input name="amount" className="login-input" type="number" min="0.01" step="0.01" required />
           </label>
-          <button className="btn btn-primary" type="submit">List fund</button>
+          <label className="block min-w-0 flex-1 text-sm font-semibold">Assign to volunteer
+            <select name="volunteerEmail" className="login-input" defaultValue="" required>
+              <option value="" disabled>Select a volunteer</option>
+              {volunteers.map(volunteer => (
+                <option key={volunteer.email} value={volunteer.email}>{volunteer.name} · {volunteer.email}</option>
+              ))}
+            </select>
+          </label>
+          <button className="btn btn-primary" type="submit">Assign fund</button>
         </form>
         {funds.length > 0 && (
           <ul className="mt-3 divide-y divide-line text-sm">
-            {funds.map(fund => <li className="py-2" key={fund.id}>{fund.name} · {formatUsd(fund.remainingCents)} left</li>)}
+            {funds.map(fund => <li className="py-2" key={fund.id}>{fund.name} · {fund.volunteerEmail ? names.get(fund.volunteerEmail) ?? fund.volunteerEmail : "Shared"} · {formatUsd(fund.remainingCents)} left</li>)}
           </ul>
         )}
       </section>
@@ -85,13 +97,15 @@ export default async function AdminFundingRequests({ status }: { status?: string
                 <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                   {request.attachments.map((file, index) => (
                     <a className="action-link wrap-anywhere" key={index} href={`/api/funding-requests/${request.id}/${index}`}>
-                      {request.vtools && index === 0 && "Budget · "}
-                      {request.vtools && index === 1 && "Invoice · "}
+                      {request.vtools && index === 0 && "Budget expense sheet · "}
+                      {request.vtools && index >= 1 && index <= (request.invoiceCount ?? 1) && "Invoice · "}
+                      {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 1 && "Funding approval email · "}
                       {file}
                     </a>
                   ))}
                 </p>
               )}
+              {request.receiptsAcknowledgedAt && <p className="mt-2 text-sm text-ink-soft">Receipts policy acknowledged{request.receiptFormatAcknowledged && " · EBM or POS receipts confirmed"}</p>}
               {request.releasedAt ? (
                 <p className="mt-3 text-sm font-semibold text-navy">{request.releasedAmount} released on {request.releasedAt.slice(0, 10)}</p>
               ) : request.approvedAt ? (
@@ -115,8 +129,14 @@ export default async function AdminFundingRequests({ status }: { status?: string
                   <button className="btn btn-primary" type="submit">Record release</button>
                 </form>
               ) : (
-                <form className="mt-3" action={approveRequest}>
+                <form className="mt-3 space-y-2" action={approveRequest}>
                   <input type="hidden" name="requestId" value={request.id} />
+                  {request.receiptsAcknowledgedAt && (
+                    <label className="flex items-start gap-2 text-sm text-navy">
+                      <input type="checkbox" name="invoiceMatches" value="yes" required className="mt-0.5 size-4 shrink-0 accent-blue" />
+                      <span>I verified that the invoices add up to the requested amount in the requested currency.</span>
+                    </label>
+                  )}
                   <button className="btn btn-primary" type="submit">Approve request</button>
                 </form>
               )}

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { attachmentCount, attachmentLimit, type Organizer, type Submission } from "@/lib/volunteer-intake";
 import { fundingReport, ownFundingRequest, reportPath, type FundingReport } from "@/lib/funding-reports";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
-import { allocationTotal, listedFunds } from "@/lib/listed-funds";
+import { allocationTotal, fundsForVolunteer } from "@/lib/listed-funds";
 import { organizerOptions } from "@/lib/volunteer-roster";
 import { getVolunteer } from "@/lib/session";
 import { removeIntakeFiles, saveIntakeFile } from "@/lib/volunteer-store";
@@ -126,8 +126,7 @@ export async function POST(request: Request) {
   const end = field("end");
   const location = field("location");
   const registration = field("registration");
-  let amount = field("amount");
-  const fundingSource = field("fundingSource");
+  let amount: string | undefined;
   let fundAllocations: Submission["fundAllocations"];
   const vtools = field("vtools");
   if (!title || title.length > 150 ||
@@ -147,30 +146,26 @@ export async function POST(request: Request) {
   }
   if (kind === "event" && (!committee || committee.length > 150)) return bad("Enter the organizing committee.");
   if (kind === "funding") {
+    if (field("acknowledgeReceipts") !== "yes") return bad("Acknowledge the receipts policy before submitting.");
+    if (field("acknowledgeReceiptFormat") !== "yes") return bad("Confirm that all receipts will be EBM- or POS-generated.");
     if (!leadVolunteerName || leadVolunteerName.length > 150) return bad("Enter the lead volunteer name.");
     if (!webLink(vtools)) return bad("Enter a valid vTools event link starting with https:// or http://.");
 
     const chosenFunds = new Set(form.getAll("fund"));
-    if (fundingSource.length > 250 || (!fundingSource && !chosenFunds.size)) {
-      return bad("Enter an expected funding source or select a listed fund.");
-    }
-    if (chosenFunds.size) {
-      const funds = (await listedFunds()).filter(fund => chosenFunds.has(fund.id));
-      if (funds.length !== chosenFunds.size) return bad("A selected fund is no longer listed. Refresh and select again.");
-      fundAllocations = [];
-      for (const fund of funds) {
-        const cents = usdCents(field(`fundAmount-${fund.id}`));
-        if (!cents || cents > fund.remainingCents) {
-          return bad(`Enter a positive USD amount within the balance for ${fund.name} (${formatUsd(fund.remainingCents)} left).`);
-        }
-        fundAllocations.push({ id: fund.id, name: fund.name, cents });
+    if (!chosenFunds.size) return bad("Select at least one expected funding source.");
+    const funds = (await fundsForVolunteer(volunteer)).filter(fund => chosenFunds.has(fund.id));
+    if (funds.length !== chosenFunds.size) return bad("A selected fund is unavailable to your account. Refresh and select again.");
+    fundAllocations = [];
+    for (const fund of funds) {
+      const cents = usdCents(field(`fundAmount-${fund.id}`));
+      if (!cents || cents > fund.remainingCents) {
+        return bad(`Enter a positive USD amount within the balance for ${fund.name} (${formatUsd(fund.remainingCents)} left).`);
       }
-      const total = allocationTotal(fundAllocations);
-      if (!Number.isSafeInteger(total) || total > 99_999_999_999_999) return bad("The total funding request is too large.");
-      amount = formatUsd(total);
-    } else if (!amount || amount.length > 80) {
-      return bad("Enter the requested amount and currency.");
+      fundAllocations.push({ id: fund.id, name: fund.name, cents });
     }
+    const total = allocationTotal(fundAllocations);
+    if (!Number.isSafeInteger(total) || total > 99_999_999_999_999) return bad("The total funding request is too large.");
+    amount = formatUsd(total);
     const chosen = new Set(form.getAll("organizer"));
     if (!chosen.size) return bad("Select at least one volunteer for the organizing committee.");
     const selected = (await organizerOptions()).filter(member => chosen.has(member.id));
@@ -181,27 +176,31 @@ export async function POST(request: Request) {
 
   const budget = filesFrom(form, "budget");
   const invoice = filesFrom(form, "invoice");
-  if (kind === "funding" && (budget.length !== 1 || invoice.length !== 1)) {
-    return bad("Attach one itemized budget and one invoice.");
+  const approvalEmail = filesFrom(form, "approvalEmail");
+  const extraFiles = filesFrom(form, "attachments");
+  const files = [...budget, ...invoice, ...approvalEmail];
+  if (kind === "event" && files.length + extraFiles.length) return bad("Event suggestions do not accept attachments.");
+  if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || extraFiles.length)) {
+    return bad("Attach a funding approval email, a budget expense sheet, and at least one invoice.");
   }
-  const files = [...budget, ...invoice, ...filesFrom(form, "attachments")];
-  if ((kind === "event" && files.length) || files.length > attachmentCount ||
-      files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
-    return bad("Attach up to five files totaling 4 MB or less.", 413);
+  if (files.length > attachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
+    return bad("Attach up to three invoices. All uploads must total 4 MB or less.", 413);
   }
-
   const uploads = [];
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
     const name = cleanName(file);
     const bytes = Buffer.from(await file.arrayBuffer());
-    if (!supportedFile(name, bytes)) return bad("Upload PDF, Excel (.xlsx), Word (.docx), PNG, or JPEG files.");
+    const extensions = index === 0 ? /\.xlsx$/i : /\.(pdf|png|jpe?g)$/i;
+    if (!extensions.test(name) || !supportedFile(name, bytes)) {
+      return bad("Use an Excel (.xlsx) budget and a PDFs or images for the invoices and approval email.");
+    }
     uploads.push({ name, bytes });
   }
 
   const id = randomUUID();
   const record: Submission = {
     id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date,
-    ...(kind === "event" ? { end, location, registration } : { amount, organizers, leadVolunteerName, vtools, fundingSource, fundAllocations }),
+    ...(kind === "event" ? { end, location, registration } : { amount, organizers, leadVolunteerName, vtools, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const saved: string[] = [];

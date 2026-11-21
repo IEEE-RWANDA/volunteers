@@ -24,7 +24,7 @@ export function ReleasedFunds({ records, statuses }: { records: Submission[]; st
                   {status && <p className="text-ink-soft">{status.label}</p>}
                   {(!status || status.review?.decision === "returned") && (
                     <a className="action-link inline-block py-1" aria-label={`${action} for ${record.title}`}
-                      href={`/dashboard?section=funding&request=${record.id}#funding-report-title`}>{action}</a>
+                      href={`/dashboard?section=funding&tab=reporting&request=${record.id}#funding-report-title`}>{action}</a>
                   )}
                 </div>
                 {status?.review?.decision === "returned" && (
