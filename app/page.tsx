@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getVolunteer } from "@/lib/session";
 import { signIn } from "./session-actions";
@@ -48,6 +49,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
               <a href="/api/auth/google?mode=request" className="block text-center text-sm font-semibold text-blue underline">Request access with Google</a>
             </div>
           )}
+          <Link href="/privacy" className="mt-5 block text-center text-sm text-ink-soft underline">Privacy notice</Link>
         </div>
       </section>
     </main>
