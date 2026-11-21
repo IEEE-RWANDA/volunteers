@@ -1,14 +1,14 @@
 import type { OrganizerOption } from "./volunteer-intake";
 import { createHash, createHmac } from "node:crypto";
-import { previewRoster } from "./session";
+import { accountRoster } from "./session";
 import { listIntakeRecords, readIntakeFile, saveIntakeFile } from "./volunteer-store";
 
 type Volunteer = { email: string; name: string; committee?: string };
 
 export async function roster() {
-  const preview = previewRoster();
-  const members = new Map<string, Volunteer>(preview.map(member => [member.email, member]));
-  if (process.env.NODE_ENV === "development" && preview.length) {
+  const accounts = accountRoster();
+  const members = new Map<string, Volunteer>(accounts.map(member => [member.email, member]));
+  if (process.env.NODE_ENV === "development" && accounts.length) {
     const demoVolunteers = [
       { name: "Demo Aline", committee: "Events" },
       { name: "Demo Brian", committee: "Outreach" },

@@ -5,7 +5,8 @@ const cookieName = "volunteer_session";
 const lifetime = 8 * 60 * 60;
 const hash = (value: string) => createHash("sha256").update(value).digest();
 
-type PreviewAccount = { email: string; password: string; name: string; committee?: string; role?: "admin" | "lead" | "volunteer" };
+type Account = { email: string; name: string; committee?: string; role?: "admin" | "lead" | "volunteer" };
+type PreviewAccount = Account & { password: string };
 
 function previewAccounts(): PreviewAccount[] {
   // shortcut: local preview accounts, replace with organization sign-in before hosting.
@@ -34,13 +35,31 @@ function previewAccounts(): PreviewAccount[] {
   return Array.from(accounts.values());
 }
 
-export function previewRoster() {
-  return previewAccounts().map(({ email, name, committee }) => ({ email, name, committee }));
+function accounts(): Account[] {
+  if (process.env.NODE_ENV === "development") return previewAccounts();
+  const configured: unknown = JSON.parse(process.env.VOLUNTEER_ACCOUNTS ?? "[]");
+  if (!Array.isArray(configured)) throw new Error("VOLUNTEER_ACCOUNTS must be an array");
+  const roster = new Map<string, Account>();
+  for (const account of configured) {
+    if (!account || typeof account.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.email) ||
+        typeof account.name !== "string" || !account.name.trim() ||
+        (account.role !== undefined && !["admin", "lead", "volunteer"].includes(account.role)) ||
+        (account.committee !== undefined && typeof account.committee !== "string") ||
+        (account.role === "lead" && !account.committee?.trim())) throw new Error("Invalid volunteer account");
+    const email = account.email.toLowerCase();
+    if (roster.has(email)) throw new Error("Duplicate volunteer account");
+    roster.set(email, { email, name: account.name, committee: account.committee, role: account.role });
+  }
+  return [...roster.values()];
+}
+
+export function accountRoster() {
+  return accounts().map(({ email, name, committee }) => ({ email, name, committee }));
 }
 
 export async function getTeamAccess() {
   const email = await getVolunteer();
-  const account = previewAccounts().find(item => item.email === email);
+  const account = accounts().find(item => item.email === email);
   if (account?.role === "admin") return { email: account.email, role: account.role } as const;
   if (account?.role === "lead" && account.committee?.trim()) {
     return { email: account.email, role: account.role, committee: account.committee } as const;
@@ -60,19 +79,29 @@ export async function getVolunteer() {
   if (extra !== undefined || !signature || !/^\d+$/.test(expires) ||
       Number(expires) <= Math.floor(Date.now() / 1000)) return null;
   const candidate = hash(signature);
-  return previewAccounts().find(account =>
+  return accounts().find(account =>
     timingSafeEqual(candidate, hash(sign(account.email + ":" + expires, secret))))?.email ?? null;
 }
 
 export async function startVolunteerSession(email: string, password: string) {
-  const secret = process.env.VOLUNTEER_SESSION_SECRET;
   const account = previewAccounts().find(candidate => candidate.email === email.trim().toLowerCase());
-  if (!secret || secret.length < 32 || !account ||
-      !timingSafeEqual(hash(password), hash(account.password))) return false;
+  if (!account || !timingSafeEqual(hash(password), hash(account.password))) return false;
+  return issueSession(account.email);
+}
+
+export async function startGoogleVolunteerSession(email: string) {
+  const account = accounts().find(candidate => candidate.email === email.toLowerCase());
+  return account ? issueSession(account.email) : false;
+}
+
+async function issueSession(email: string) {
+  const secret = process.env.VOLUNTEER_SESSION_SECRET;
+  if (!secret || secret.length < 32) return false;
   const expires = Math.floor(Date.now() / 1000) + lifetime;
-  const signature = sign(account.email + ":" + expires, secret);
+  const signature = sign(email + ":" + expires, secret);
   (await cookies()).set(cookieName, expires + "." + signature, {
     httpOnly: true,
+    secure: process.env.NODE_ENV !== "development",
     sameSite: "lax",
     path: "/",
     maxAge: lifetime,

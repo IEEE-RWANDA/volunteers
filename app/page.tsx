@@ -22,7 +22,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
         <div className="w-full max-w-sm">
           <h2 id="sign-in" className="font-display text-3xl font-bold text-navy">Sign in</h2>
           <p className="mt-2 text-ink-soft">Access your volunteer dashboard.</p>
-          <form action={signIn} className="mt-7 space-y-5">
+          {process.env.NODE_ENV === "development" ? <form action={signIn} className="mt-7 space-y-5">
             <label className="block text-sm font-semibold">Email address
               <input className="login-input" name="email" type="email" autoComplete="username" maxLength={254} required />
             </label>
@@ -31,7 +31,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
             </label>
             {error && <p role="alert" className="text-sm font-semibold text-red-700">The email or password is incorrect.</p>}
             <button className="btn btn-primary w-full" type="submit">Sign in</button>
-          </form>
+          </form> : (
+            <div className="mt-7 space-y-3">
+              {error && (
+                <p role="alert" className="text-sm font-semibold text-red-700">
+                  {error === "access" ? "This Google account has not been granted access to the Volunteer Hub."
+                    : "Google sign-in could not be completed. Try again or contact the IEEE Rwanda administrator."}
+                </p>
+              )}
+              <a href="/api/auth/google" className="btn btn-primary w-full">Sign in with Google</a>
+            </div>
+          )}
         </div>
       </section>
     </main>
