@@ -9,7 +9,7 @@ export async function signIn(form: FormData) {
   if (typeof email !== "string" || typeof password !== "string" ||
       email.length > 254 || password.length > 256 ||
       !await startVolunteerSession(email, password)) redirect("/?error=credentials");
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function signOut() {

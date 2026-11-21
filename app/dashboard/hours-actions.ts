@@ -9,12 +9,12 @@ export async function logHours(form: FormData) {
   const email = await getVolunteer();
   if (!email) redirect("/");
   const entry = parseHours(form, kigaliToday());
-  if (!entry) redirect("/dashboard?section=volunteers&hours=invalid");
+  if (!entry) redirect("/?section=volunteers&hours=invalid");
   try {
     await saveVolunteerHours(email, entry);
   } catch {
-    redirect("/dashboard?section=volunteers&hours=unavailable");
+    redirect("/?section=volunteers&hours=unavailable");
   }
-  revalidatePath("/dashboard");
-  redirect("/dashboard?section=volunteers&hours=saved");
+  revalidatePath("/");
+  redirect("/?section=volunteers&hours=saved");
 }

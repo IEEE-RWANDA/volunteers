@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     const normalizedEmail = email.toLowerCase();
-    if (await startGoogleVolunteerSession(normalizedEmail, sub)) return finish("/dashboard");
+    if (await startGoogleVolunteerSession(normalizedEmail, sub)) return finish("/");
     if (mode !== "request") return finish("/?error=access");
     const displayName = (typeof name === "string" ? name.trim().slice(0, 150) : "") || normalizedEmail;
     const status = await requestAccess(normalizedEmail, displayName, sub);

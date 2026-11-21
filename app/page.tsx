@@ -1,12 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getVolunteer } from "@/lib/session";
+import Dashboard, { type DashboardParams } from "./dashboard/Dashboard";
 import { signIn } from "./session-actions";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ error?: string; access?: string }> }) {
-  if (await getVolunteer()) redirect("/dashboard");
-  const { error, access } = await searchParams;
+export default async function Page({ searchParams }: { searchParams: Promise<DashboardParams & { error?: string; access?: string }> }) {
+  const params = await searchParams;
+  const email = await getVolunteer();
+  if (email) return <Dashboard email={email} params={params} />;
+  const { error, access } = params;
 
   return (
     <main className="login-layout">

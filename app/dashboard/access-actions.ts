@@ -6,7 +6,7 @@ import { getTeamAccess } from "@/lib/session";
 
 export async function reviewAccess(form: FormData) {
   const reviewer = await getTeamAccess();
-  if (reviewer?.role !== "admin") redirect("/dashboard");
+  if (reviewer?.role !== "admin") redirect("/");
   const id = form.get("id");
   const decision = form.get("decision");
   let status = "access-stale";
@@ -17,5 +17,5 @@ export async function reviewAccess(form: FormData) {
       status = "access-error";
     }
   }
-  redirect("/dashboard?section=team&team=" + status + "#approve-access");
+  redirect("/?section=team&team=" + status + "#approve-access");
 }

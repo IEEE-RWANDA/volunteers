@@ -27,7 +27,7 @@ export default function FundingReportForm({ requests, selected, revision }: { re
         setError(result?.error ?? "The report could not be saved. Try again.");
         return;
       }
-      router.push("/dashboard?section=funding&tab=reporting&report=saved");
+      router.push("/?section=funding&tab=reporting&report=saved");
       router.refresh();
     } catch {
       setError("The site could not be reached. Try again.");

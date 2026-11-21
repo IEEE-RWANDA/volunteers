@@ -6,13 +6,13 @@ import { getTeamAccess } from "@/lib/session";
 import { fundingReport, saveReportReview } from "@/lib/funding-reports";
 
 function finish(status: string): never {
-  revalidatePath("/dashboard");
-  redirect("/dashboard?section=team&team=" + status + "#admin-reports");
+  revalidatePath("/");
+  redirect("/?section=team&team=" + status + "#admin-reports");
 }
 
 export async function reviewReport(form: FormData) {
   const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/dashboard");
+  if (access?.role !== "admin") redirect("/");
   const id = String(form.get("requestId") ?? "");
   const decision = form.get("decision");
   const comments = String(form.get("comments") ?? "").trim();

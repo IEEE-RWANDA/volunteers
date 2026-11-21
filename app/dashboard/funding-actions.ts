@@ -10,13 +10,13 @@ import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import { kigaliToday } from "@/lib/volunteer-hours";
 
 function finish(status: string): never {
-  revalidatePath("/dashboard");
-  redirect("/dashboard?section=team&team=" + status + "#admin-funding");
+  revalidatePath("/");
+  redirect("/?section=team&team=" + status + "#admin-funding");
 }
 
 export async function approveRequest(form: FormData) {
   const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/dashboard");
+  if (access?.role !== "admin") redirect("/");
   const request = await fundingRequest(String(form.get("requestId") ?? ""));
   if (!request || request.approvedAt || request.releasedAt) finish("funding-state");
   if (request.receiptsAcknowledgedAt && form.get("invoiceMatches") !== "yes") finish("funding-invoice");
@@ -30,7 +30,7 @@ export async function approveRequest(form: FormData) {
 
 export async function recordRelease(form: FormData) {
   const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/dashboard");
+  if (access?.role !== "admin") redirect("/");
   const request = await fundingRequest(String(form.get("requestId") ?? ""));
   if (!request?.approvedAt || request.releasedAt) finish("funding-state");
 
@@ -52,7 +52,7 @@ export async function recordRelease(form: FormData) {
 
 export async function listFund(form: FormData) {
   const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/dashboard");
+  if (access?.role !== "admin") redirect("/");
   const name = String(form.get("name") ?? "").trim();
   const usd = String(form.get("amount") ?? "").trim();
   const cents = usdCents(usd);

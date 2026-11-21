@@ -7,13 +7,13 @@ import { addToRoster, roster, teamRoster } from "@/lib/volunteer-roster";
 import { kigaliToday, parseHours, saveTeamHours } from "@/lib/volunteer-hours";
 
 function finish(status: string): never {
-  revalidatePath("/dashboard");
-  redirect("/dashboard?section=team&team=" + status);
+  revalidatePath("/");
+  redirect("/?section=team&team=" + status);
 }
 
 export async function addVolunteer(form: FormData) {
   const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/dashboard");
+  if (access?.role !== "admin") redirect("/");
   const field = (key: string) => {
     const value = form.get(key);
     return typeof value === "string" ? value.trim() : "";
@@ -35,7 +35,7 @@ export async function addVolunteer(form: FormData) {
 
 export async function logTeamHours(form: FormData) {
   const access = await getTeamAccess();
-  if (!access) redirect("/dashboard");
+  if (!access) redirect("/");
   const chosen = [...new Set(form.getAll("volunteer"))];
   const entry = parseHours(form, kigaliToday());
   if (!entry || !chosen.length || chosen.some(value => typeof value !== "string")) finish("invalid-hours");
