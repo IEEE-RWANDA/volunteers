@@ -1,0 +1,221 @@
+import { randomUUID } from "node:crypto";
+import { attachmentCount, attachmentLimit, type Organizer, type Submission } from "@/lib/volunteer-intake";
+import { fundingReport, ownFundingRequest, reportPath, type FundingReport } from "@/lib/funding-reports";
+import { formatUsd, usdCents } from "@/lib/fund-amounts";
+import { allocationTotal, listedFunds } from "@/lib/listed-funds";
+import { organizerOptions } from "@/lib/volunteer-roster";
+import { getVolunteer } from "@/lib/session";
+import { removeIntakeFiles, saveIntakeFile } from "@/lib/volunteer-store";
+
+const bad = (error: string, status = 400) => Response.json({ error }, { status });
+
+function validDate(value: string, timed: boolean) {
+  if (!(timed ? /^\d{4}-\d\d-\d\dT\d\d:\d\d$/ : /^\d{4}-\d\d-\d\d$/).test(value)) return false;
+  const date = new Date(timed ? value + "Z" : value + "T00:00:00Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+function supportedFile(name: string, bytes: Buffer) {
+  const extension = name.split(".").at(-1)?.toLowerCase();
+  const header = bytes.subarray(0, 8).toString("hex");
+  switch (extension) {
+    case "pdf": return header.startsWith("255044462d");
+    case "xlsx":
+    case "docx": return header.startsWith("504b0304");
+    case "jpeg":
+    case "jpg": return header.startsWith("ffd8ff");
+    case "png": return header === "89504e470d0a1a0a";
+    default: return false;
+  }
+}
+
+const filesFrom = (form: FormData, key: string) =>
+  form.getAll(key).filter((value): value is File => typeof value !== "string" && value.size > 0);
+const cleanName = (file: File) => file.name.replace(/[\\/\r\n]/g, "_").slice(-150);
+const webLink = (value: string) =>
+  value.length <= 1000 && URL.canParse(value) && ["https:", "http:"].includes(new URL(value).protocol);
+
+async function submitFundingReport(form: FormData, email: string) {
+  const requestId = String(form.get("requestId") ?? "");
+  const request = await ownFundingRequest(requestId, email);
+  if (!request) return bad("Funding request not found.", 404);
+  if (!request.releasedAt) return bad("You can submit a report after funds are released.", 409);
+  const previous = await fundingReport(requestId);
+  if (previous && previous.review?.decision !== "returned") {
+    return bad("This report has already been submitted for review.", 409);
+  }
+  const version = (previous?.version ?? 0) + 1;
+
+  const photos = String(form.get("photos") ?? "").trim();
+  const vtools = String(form.get("vtools") ?? "").trim();
+  if (!webLink(photos) || !webLink(vtools)) return bad("Enter valid photo and vTools links.");
+
+  const receipts = filesFrom(form, "receipts");
+  const expense = filesFrom(form, "expense");
+  const summary = filesFrom(form, "summary");
+  if (!receipts.length || expense.length !== 1 || summary.length !== 1) {
+    return bad("Attach receipts, one expense sheet, and one activity report PDF.");
+  }
+  const uploads = [
+    ...receipts.map(file => ({ file, type: "receipt" as const, extensions: /\.(pdf|png|jpe?g)$/i })),
+    { file: expense[0], type: "expense sheet" as const, extensions: /\.xlsx$/i },
+    { file: summary[0], type: "activity report" as const, extensions: /\.pdf$/i },
+  ];
+  if (uploads.length > attachmentCount || uploads.reduce((total, item) => total + item.file.size, 0) > attachmentLimit) {
+    return bad("Attach up to five files totaling 4 MB or less.", 413);
+  }
+  const report: FundingReport = {
+    requestId, title: request.title, committee: request.committee, submittedBy: email,
+    receivedAt: new Date().toISOString(), photos, vtools, attachments: [],
+  };
+  const batch = randomUUID();
+  const files = [];
+  for (const [index, { file, type, extensions }] of uploads.entries()) {
+    const name = cleanName(file);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (!extensions.test(name) || !supportedFile(name, bytes)) return bad("Use PDF or image receipts, an XLSX expense sheet, and a PDF activity report.");
+    const path = `report-files/${requestId}/${batch}/${index}`;
+    report.attachments.push({ name, type, path });
+    files.push({ path, bytes });
+  }
+
+  const saved: string[] = [];
+  try {
+    for (const file of files) {
+      await saveIntakeFile(file.path, file.bytes);
+      saved.push(file.path);
+    }
+    await saveIntakeFile(reportPath(requestId, version), JSON.stringify(report));
+  } catch {
+    await removeIntakeFiles(saved).catch(() => console.error("Funding report attachment cleanup failed", requestId));
+    if (await fundingReport(requestId, version).catch(() => null)) return bad("A report has already been submitted for this request.", 409);
+    return bad("Your report could not be saved. Please try again.", 503);
+  }
+  return Response.json({ id: requestId }, { status: 201 });
+}
+
+export async function POST(request: Request) {
+  const volunteer = await getVolunteer();
+  if (!volunteer) return bad("Sign in to submit a request.", 401);
+  if (request.headers.get("sec-fetch-site") === "cross-site") return bad("Invalid request origin.", 403);
+  if (Number(request.headers.get("content-length")) > attachmentLimit + 64 * 1024) {
+    return bad("Attachments must total 4 MB or less.", 413);
+  }
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return bad("The submission could not be read. Check the attachment sizes and try again.");
+  }
+
+  const field = (key: string) => {
+    const value = form.get(key);
+    return typeof value === "string" ? value.trim() : "";
+  };
+  const kind = field("kind");
+  if (kind === "funding-report") return submitFundingReport(form, volunteer);
+  if (kind !== "event" && kind !== "funding") return bad("Select a submission type.");
+  const title = field("title");
+  const email = field("email");
+  const leadVolunteerName = field("leadVolunteerName");
+  let committee = field("committee");
+  let organizers: Organizer[] | undefined;
+  const details = field("details");
+  const date = field("date");
+  const end = field("end");
+  const location = field("location");
+  const registration = field("registration");
+  let amount = field("amount");
+  const fundingSource = field("fundingSource");
+  let fundAllocations: Submission["fundAllocations"];
+  const vtools = field("vtools");
+  if (!title || title.length > 150 ||
+      !details || details.length > 4000 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return bad(kind === "funding"
+      ? "Enter an activity name, description, and valid lead volunteer email."
+      : "Enter a title, description, and valid contact email.");
+  }
+  if (!validDate(date, kind === "event")) return bad("Enter a valid date.");
+  if (kind === "event" && (!validDate(end, true) || end <= date || !location || location.length > 250)) {
+    return bad("Enter an end time after the start time and a location.");
+  }
+  if (kind === "event" && registration) {
+    if (registration.length > 1000 || !URL.canParse(registration) || !["http:", "https:"].includes(new URL(registration).protocol)) {
+      return bad("Enter a registration link starting with http:// or https://.");
+    }
+  }
+  if (kind === "event" && (!committee || committee.length > 150)) return bad("Enter the organizing committee.");
+  if (kind === "funding") {
+    if (!leadVolunteerName || leadVolunteerName.length > 150) return bad("Enter the lead volunteer name.");
+    if (!webLink(vtools)) return bad("Enter a valid vTools event link starting with https:// or http://.");
+
+    const chosenFunds = new Set(form.getAll("fund"));
+    if (fundingSource.length > 250 || (!fundingSource && !chosenFunds.size)) {
+      return bad("Enter an expected funding source or select a listed fund.");
+    }
+    if (chosenFunds.size) {
+      const funds = (await listedFunds()).filter(fund => chosenFunds.has(fund.id));
+      if (funds.length !== chosenFunds.size) return bad("A selected fund is no longer listed. Refresh and select again.");
+      fundAllocations = [];
+      for (const fund of funds) {
+        const cents = usdCents(field(`fundAmount-${fund.id}`));
+        if (!cents || cents > fund.remainingCents) {
+          return bad(`Enter a positive USD amount within the balance for ${fund.name} (${formatUsd(fund.remainingCents)} left).`);
+        }
+        fundAllocations.push({ id: fund.id, name: fund.name, cents });
+      }
+      const total = allocationTotal(fundAllocations);
+      if (!Number.isSafeInteger(total) || total > 99_999_999_999_999) return bad("The total funding request is too large.");
+      amount = formatUsd(total);
+    } else if (!amount || amount.length > 80) {
+      return bad("Enter the requested amount and currency.");
+    }
+    const chosen = new Set(form.getAll("organizer"));
+    if (!chosen.size) return bad("Select at least one volunteer for the organizing committee.");
+    const selected = (await organizerOptions()).filter(member => chosen.has(member.id));
+    if (selected.length !== chosen.size) return bad("A selected volunteer is no longer listed. Refresh and select again.");
+    organizers = selected.map(({ name, committee }) => ({ name, committee }));
+    committee = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].join(", ") || "Volunteers";
+  }
+
+  const budget = filesFrom(form, "budget");
+  const invoice = filesFrom(form, "invoice");
+  if (kind === "funding" && (budget.length !== 1 || invoice.length !== 1)) {
+    return bad("Attach one itemized budget and one invoice.");
+  }
+  const files = [...budget, ...invoice, ...filesFrom(form, "attachments")];
+  if ((kind === "event" && files.length) || files.length > attachmentCount ||
+      files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
+    return bad("Attach up to five files totaling 4 MB or less.", 413);
+  }
+
+  const uploads = [];
+  for (const file of files) {
+    const name = cleanName(file);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (!supportedFile(name, bytes)) return bad("Upload PDF, Excel (.xlsx), Word (.docx), PNG, or JPEG files.");
+    uploads.push({ name, bytes });
+  }
+
+  const id = randomUUID();
+  const record: Submission = {
+    id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date,
+    ...(kind === "event" ? { end, location, registration } : { amount, organizers, leadVolunteerName, vtools, fundingSource, fundAllocations }),
+    attachments: uploads.map(upload => upload.name),
+  };
+  const saved: string[] = [];
+  try {
+    for (const [index, { bytes }] of uploads.entries()) {
+      const path = `files/${id}/${index}`;
+      await saveIntakeFile(path, bytes);
+      saved.push(path);
+    }
+    await saveIntakeFile(`records/${id}.json`, JSON.stringify(record));
+  } catch {
+    await removeIntakeFiles(saved).catch(() => console.error("Volunteer attachment cleanup failed", id));
+    console.error("Volunteer submission storage failed", id);
+    return bad("Your submission could not be saved. Please try again.", 503);
+  }
+  return Response.json({ id }, { status: 201 });
+}
