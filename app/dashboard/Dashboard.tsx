@@ -8,6 +8,8 @@ import { organizerOptions } from "@/lib/volunteer-roster";
 import { volunteerSubmissions } from "@/lib/volunteer-store";
 import VolunteerForm from "@/app/components/VolunteerForm";
 import { signOut } from "@/app/session-actions";
+import OverviewActivity from "./OverviewActivity";
+import { volunteerHours } from "@/lib/volunteer-hours";
 import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
@@ -36,7 +38,10 @@ export default async function Dashboard({ email, params }: { email: string; para
   const funds = funding ? await fundsForVolunteer(email) : [];
   const initialFund = funds.find(item => item.id === fund && item.remainingCents > 0)?.id;
   const organizers = funding || current.id === "events" ? await organizerOptions() : [];
-  const records = current.id === "overview" || reporting ? await volunteerSubmissions(email) : [];
+  const [records, activityEntries] = await Promise.all([
+    current.id === "overview" || reporting ? volunteerSubmissions(email) : [],
+    current.id === "overview" ? volunteerHours(email) : [],
+  ]);
   const reportStatuses = await fundingReportStatuses(records.filter(record => record.kind === "funding").map(record => record.id));
   const eventCount = records.filter(record => record.kind === "event").length;
 
@@ -81,9 +86,11 @@ export default async function Dashboard({ email, params }: { email: string; para
               <div className="dashboard-hero-content">
                 <p className="eyebrow text-[#a9e8fa]">IEEE Rwanda Subsection</p>
                 <h1>Volunteer dashboard</h1>
-                <p className="max-w-sm text-[#d8eaf5]">Plan committee activities and keep track of your submissions.</p>
+                <p className="max-w-sm text-[#d8eaf5]">Track your volunteer hours, activities, and reports.</p>
               </div>
             </header>
+
+            <OverviewActivity entries={activityEntries} records={records} statuses={reportStatuses} />
 
             <div className="dashboard-workflows">
               <Link className="workflow workflow-events" href="/?section=events">
@@ -104,20 +111,11 @@ export default async function Dashboard({ email, params }: { email: string; para
               </Link>
             </div>
 
-            <section className="submission-panel" aria-labelledby="submissions">
+            {records.length > 0 && <section className="submission-panel" aria-labelledby="submissions">
               <div className="submission-header">
                 <h2 id="submissions" className="panel-title">Your submissions</h2>
                 <p className="text-sm text-ink-soft">{eventCount} {eventCount === 1 ? "event" : "events"} · {records.length - eventCount} funding {records.length - eventCount === 1 ? "request" : "requests"}</p>
               </div>
-              {records.length === 0 ? (
-                <div className="submission-empty">
-                  <span className="empty-icon nav-glyph nav-glyph-2" aria-hidden="true" />
-                  <div>
-                    <p className="font-semibold text-navy">No submissions yet</p>
-                    <p className="mt-1 text-sm text-ink-soft">Events and funding requests you submit will appear here.</p>
-                  </div>
-                </div>
-              ) : (
                 <ul className="divide-y divide-line">
                   {records.map(record => (
                     <li key={record.id} className="submission-row">
@@ -138,8 +136,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                     </li>
                   ))}
                 </ul>
-              )}
-            </section>
+            </section>}
           </>
         ) : (
           <>
