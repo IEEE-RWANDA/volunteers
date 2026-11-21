@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { getVolunteer } from "@/lib/session";
 import { signIn } from "./session-actions";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ error?: string; access?: string }> }) {
   if (await getVolunteer()) redirect("/dashboard");
-  const { error } = await searchParams;
+  const { error, access } = await searchParams;
 
   return (
     <main className="login-layout">
@@ -35,11 +35,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
             <div className="mt-7 space-y-3">
               {error && (
                 <p role="alert" className="text-sm font-semibold text-red-700">
-                  {error === "access" ? "This Google account has not been granted access to the Volunteer Hub."
+                  {error === "rejected" ? "Your access request was declined. Contact the IEEE Rwanda administrator if you need help."
+                    : error === "account" ? "Use a verified Gmail or Google Workspace account."
+                    : error === "access" ? "This Google account has not been granted access to the Volunteer Hub."
                     : "Google sign-in could not be completed. Try again or contact the IEEE Rwanda administrator."}
                 </p>
               )}
+              {access === "pending" && (
+                <p role="status" className="text-sm font-semibold text-navy">Access requested. Sign in again after an admin approves your request.</p>
+              )}
               <a href="/api/auth/google" className="btn btn-primary w-full">Sign in with Google</a>
+              <a href="/api/auth/google?mode=request" className="block text-center text-sm font-semibold text-blue underline">Request access with Google</a>
             </div>
           )}
         </div>

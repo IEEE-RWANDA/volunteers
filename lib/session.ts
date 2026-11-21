@@ -1,4 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { accessRequests, approvedVolunteer } from "./access-requests";
 import { cookies } from "next/headers";
 
 const cookieName = "volunteer_session";
@@ -53,8 +54,16 @@ function accounts(): Account[] {
   return [...roster.values()];
 }
 
-export function accountRoster() {
-  return accounts().map(({ email, name, committee }) => ({ email, name, committee }));
+export async function accountRoster() {
+  const roster = new Map(accounts().map(({ email, name, committee }) => [email, { email, name, committee }]));
+  if (process.env.NODE_ENV !== "development") {
+    for (const entry of await accessRequests()) {
+      if (entry.decision?.status === "approved" && !roster.has(entry.email)) {
+        roster.set(entry.email, { email: entry.email, name: entry.name, committee: undefined });
+      }
+    }
+  }
+  return [...roster.values()];
 }
 
 export async function getTeamAccess() {
@@ -75,10 +84,15 @@ export async function getVolunteer() {
   const secret = process.env.VOLUNTEER_SESSION_SECRET;
   const session = (await cookies()).get(cookieName)?.value;
   if (!secret || secret.length < 32 || !session) return null;
-  const [expires, signature, extra] = session.split(".");
+  const [expires, signature, identity, extra] = session.split(".");
   if (extra !== undefined || !signature || !/^\d+$/.test(expires) ||
       Number(expires) <= Math.floor(Date.now() / 1000)) return null;
   const candidate = hash(signature);
+  if (identity) {
+    const email = Buffer.from(identity, "base64url").toString("utf8");
+    if (!timingSafeEqual(candidate, hash(sign("google:" + identity + ":" + expires, secret)))) return null;
+    return accounts().some(account => account.email === email) || await approvedVolunteer(email) ? email : null;
+  }
   return accounts().find(account =>
     timingSafeEqual(candidate, hash(sign(account.email + ":" + expires, secret))))?.email ?? null;
 }
@@ -89,17 +103,20 @@ export async function startVolunteerSession(email: string, password: string) {
   return issueSession(account.email);
 }
 
-export async function startGoogleVolunteerSession(email: string) {
-  const account = accounts().find(candidate => candidate.email === email.toLowerCase());
-  return account ? issueSession(account.email) : false;
+export async function startGoogleVolunteerSession(email: string, subject: string) {
+  if (accounts().some(account => account.email === email) || (await approvedVolunteer(email))?.subject === subject) {
+    return issueSession(email, true);
+  }
+  return false;
 }
 
-async function issueSession(email: string) {
+async function issueSession(email: string, google = false) {
   const secret = process.env.VOLUNTEER_SESSION_SECRET;
   if (!secret || secret.length < 32) return false;
   const expires = Math.floor(Date.now() / 1000) + lifetime;
-  const signature = sign(email + ":" + expires, secret);
-  (await cookies()).set(cookieName, expires + "." + signature, {
+  const identity = Buffer.from(email).toString("base64url");
+  const signature = sign((google ? "google:" + identity : email) + ":" + expires, secret);
+  (await cookies()).set(cookieName, expires + "." + signature + (google ? "." + identity : ""), {
     httpOnly: true,
     secure: process.env.NODE_ENV !== "development",
     sameSite: "lax",

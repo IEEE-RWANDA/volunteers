@@ -6,7 +6,7 @@ import { listIntakeRecords, readIntakeFile, saveIntakeFile } from "./volunteer-s
 type Volunteer = { email: string; name: string; committee?: string };
 
 export async function roster() {
-  const accounts = accountRoster();
+  const accounts = await accountRoster();
   const members = new Map<string, Volunteer>(accounts.map(member => [member.email, member]));
   if (process.env.NODE_ENV === "development" && accounts.length) {
     const demoVolunteers = [

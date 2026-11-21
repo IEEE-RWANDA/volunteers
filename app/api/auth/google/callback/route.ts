@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { googleCallback, googleCredentials, googleFlowCookie, portalOrigin } from "@/lib/google-sign-in";
+import { requestAccess } from "@/lib/access-requests";
 import { startGoogleVolunteerSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   }
 
   const credentials = googleCredentials();
-  const [state, verifier] = (request.cookies.get(googleFlowCookie)?.value ?? "").split(".");
+  const [state, verifier, mode] = (request.cookies.get(googleFlowCookie)?.value ?? "").split(".");
   const code = request.nextUrl.searchParams.get("code");
   if (!credentials || !state || !verifier || !code ||
       state !== request.nextUrl.searchParams.get("state") ||
@@ -36,11 +37,19 @@ export async function GET(request: NextRequest) {
       signal: AbortSignal.timeout(10_000),
     });
     if (!userinfo.ok) return finish("/?error=google");
-    const { email, email_verified: verified, hd: hostedDomain } = await userinfo.json();
-    if (typeof email !== "string" || verified !== true ||
-        (!email.toLowerCase().endsWith("@gmail.com") && !(typeof hostedDomain === "string" && hostedDomain)) ||
-        !await startGoogleVolunteerSession(email)) return finish("/?error=access");
-    return finish("/dashboard");
+    const { email, email_verified: verified, hd: hostedDomain, sub, name } = await userinfo.json();
+    if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+        typeof sub !== "string" || !sub || sub.length > 255 || verified !== true ||
+        (!email.toLowerCase().endsWith("@gmail.com") && !(typeof hostedDomain === "string" && hostedDomain))) {
+      return finish("/?error=account");
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    if (await startGoogleVolunteerSession(normalizedEmail, sub)) return finish("/dashboard");
+    if (mode !== "request") return finish("/?error=access");
+    const displayName = (typeof name === "string" ? name.trim().slice(0, 150) : "") || normalizedEmail;
+    const status = await requestAccess(normalizedEmail, displayName, sub);
+    return finish(status === "pending" ? "/?access=pending" : `/?error=${status === "rejected" ? "rejected" : "access"}`);
   } catch {
     return finish("/?error=google");
   }

@@ -3,6 +3,7 @@ import { listFundingReports, reportStatus } from "@/lib/funding-reports";
 import { teamRoster } from "@/lib/volunteer-roster";
 import { formatHours, teamHourTotals } from "@/lib/volunteer-hours";
 import { reviewReport } from "./report-review-actions";
+import AdminAccessRequests from "./AdminAccessRequests";
 import AdminFundingRequests from "./AdminFundingRequests";
 import HoursFields from "./HoursFields";
 import { addVolunteer, logTeamHours } from "./team-actions";
@@ -38,6 +39,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
           {message.text}
         </p>
       )}
+      {access.role === "admin" && <AdminAccessRequests status={status} />}
       {access.role === "admin" && <AdminFundingRequests status={status} />}
       <div className={access.role === "admin" ? "grid items-start gap-5 lg:grid-cols-[1.4fr_1fr]" : "max-w-3xl"}>
         <section className="panel" aria-labelledby="team-hours">
