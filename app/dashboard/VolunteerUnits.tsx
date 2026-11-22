@@ -1,6 +1,13 @@
+import Link from "next/link";
 import UnitLogo from "./UnitLogo";
 import { canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
 import { addUnitRole, assignUnit, createUnit, giveUnitBadge, reviewUnitApplication } from "./team-actions";
+
+const organizationGroups = [
+  { type: "chapter", title: "Chapters", empty: "No chapters have been added." },
+  { type: "branch", title: "Student branches", empty: "No student branches have been added." },
+  { type: "affinity", title: "Affinity groups", empty: "No affinity groups have been added." },
+] as const;
 
 const messages: Record<string, string> = {
   "unit-added": "Unit created.",
@@ -19,11 +26,12 @@ const messages: Record<string, string> = {
   "unit-unavailable": "The change could not be saved. Please try again.",
 };
 
-export default async function VolunteerUnits({ members, viewer, admin = false, status }: {
+export default async function VolunteerUnits({ members, viewer, admin = false, status, group }: {
   members: { email: string; name: string }[];
   viewer: string;
   admin?: boolean;
   status?: string;
+  group?: string;
 }) {
   const [units, memberships, leads, badges, roles, applications] = await Promise.all([
     volunteerUnits(), unitMemberships(), unitLeads(), unitBadges(), openUnitRoles(), roleApplications(),
@@ -34,11 +42,13 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
   const branches = manageable.filter(unit => unit.type === "branch");
   const canCreate = systemWide || branches.length > 0;
   const canAppointChair = manageable.some(unit => canDesignateUnitChair(viewer, unit, systemWide, leads));
+  const activeGroup = group === undefined ? undefined : organizationGroups.find(item => item.type === group) ?? organizationGroups[0];
+  const groups = activeGroup ? [activeGroup] : organizationGroups;
   const message = status && Object.hasOwn(messages, status) ? messages[status] : null;
 
   return (
     <section className="panel scroll-mt-5" id="volunteer-units" aria-labelledby="volunteer-units-title">
-      <h2 id="volunteer-units-title" className="panel-title">Chapters and student branches</h2>
+      <h2 id="volunteer-units-title" className="panel-title">Organizations</h2>
       {message && <p role="status" className="mt-3 text-sm font-semibold text-navy">{message}</p>}
       {(canCreate || manageable.length > 0) && (
         <details className="mt-4 rounded-lg border border-line bg-paper-2 p-4">
@@ -90,28 +100,56 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
           </div>
         </details>
       )}
-      {units.length ? (
-        <ul className="mt-4 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {units.filter(unit => !unit.parentId).map(unit => (
-            <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
-              <div className="mb-2 flex items-center gap-3">
-                <UnitLogo unit={unit} />
-                <div><p className="font-semibold text-navy">{unit.name}</p><p className="text-xs text-ink-soft">{unitTypes[unit.type]}</p></div>
-              </div>
-              {unitDetails(unit.id)}
-              {units.filter(chapter => chapter.parentId === unit.id).map(chapter => (
-                <div key={chapter.id} className="mt-3 border-s border-line ps-3">
-                  <div className="mb-2 flex items-center gap-3">
-                    <UnitLogo unit={chapter} />
-                    <div><p className="font-semibold text-navy">{chapter.name}</p><p className="text-xs text-ink-soft">{unitTypes[chapter.type]}</p></div>
-                  </div>
-                  {unitDetails(chapter.id)}
-                </div>
-              ))}
-            </li>
+      {activeGroup && (
+        <nav aria-label="Organization categories" className="dashboard-nav mt-5">
+          {organizationGroups.map(item => (
+            <Link key={item.type} href={`/?section=volunteers&tab=organizations&group=${item.type}`}
+              aria-current={activeGroup.type === item.type ? "page" : undefined}>{item.title}</Link>
           ))}
-        </ul>
-      ) : <p className="mt-4 text-sm text-ink-soft">No chapters or student branches have been added.</p>}
+        </nav>
+      )}
+      <div className="mt-5 space-y-6">
+        {groups.map(group => {
+          const groupUnits = units.filter(unit => unit.type === group.type);
+          return (
+            <section key={group.type} aria-labelledby={`volunteer-group-${group.type}`} className="border-t border-line pt-5">
+              <h3 id={`volunteer-group-${group.type}`} className="font-display text-lg font-bold text-navy">{group.title}</h3>
+              {groupUnits.length ? (
+                <ul className="mt-3 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {groupUnits.map(unit => {
+                    const chapters = units.filter(chapter => chapter.type === "branchChapter" && chapter.parentId === unit.id);
+                    return (
+                      <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
+                        <div className="mb-2 flex items-center gap-3">
+                          <UnitLogo unit={unit} />
+                          <h4 className="wrap-anywhere font-semibold text-navy">{unit.name}</h4>
+                        </div>
+                        {unitDetails(unit.id)}
+                        {chapters.length > 0 && (
+                          <div className="mt-4 border-t border-line pt-3">
+                            <h5 className="text-sm font-semibold text-navy">Student branch chapters</h5>
+                            <ul className="mt-2 space-y-3 border-s border-line ps-3">
+                              {chapters.map(chapter => (
+                                <li key={chapter.id}>
+                                  <div className="mb-2 flex items-center gap-3">
+                                    <UnitLogo unit={chapter} />
+                                    <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
+                                  </div>
+                                  {unitDetails(chapter.id)}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : <p className="mt-2 text-sm text-ink-soft">{group.empty}</p>}
+            </section>
+          );
+        })}
+      </div>
     </section>
   );
 

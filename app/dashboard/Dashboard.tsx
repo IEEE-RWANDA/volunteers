@@ -30,7 +30,7 @@ const baseNavigation = [
   { id: "volunteers", label: "Volunteers", href: "/?section=volunteers" },
 ] as const;
 
-export type DashboardParams = { section?: string; hours?: string; profile?: string; unitStatus?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string; q?: string; role?: string; roleView?: string };
+export type DashboardParams = { section?: string; hours?: string; profile?: string; unitStatus?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string; q?: string; role?: string; roleView?: string; group?: string };
 
 export default async function Dashboard({ email, params }: { email: string; params: DashboardParams }) {
   const { section, hours, profile, unitStatus, team, report, request, fund, tab } = params;
@@ -191,7 +191,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                 {volunteerTab === "roles" ? <VolunteerRoleBoard email={email} params={params} /> :
                   volunteerTab === "directory" ? <VolunteerDirectory members={await roster()} viewer={email} /> :
                   volunteerTab === "organizations" ? (
-                    <VolunteerUnits members={await roster()} viewer={email} status={unitStatus} admin={access?.role === "admin"} />
+                    <VolunteerUnits members={await roster()} viewer={email} status={unitStatus} group={params.group ?? "chapter"} admin={access?.role === "admin"} />
                   ) : <VolunteerHours email={email} status={hours} profileStatus={profile} avatar={avatar} googleName={googleName} />}
               </>
             ) :

@@ -42,7 +42,7 @@ export async function createUnit(form: FormData) {
   const logo = form.get("logo");
   if (!(logo instanceof File) || !logo.size || logo.size > 1024 * 1024) unitResult("invalid-unit-logo");
   const added = await addVolunteerUnit(name, type, parentId, Buffer.from(await logo.arrayBuffer())).catch(() => false);
-  unitResult(added ? "unit-added" : "invalid-unit");
+  unitResult(added ? "unit-added" : "invalid-unit", type);
 }
 
 export async function assignUnit(form: FormData) {
@@ -60,12 +60,13 @@ export async function assignUnit(form: FormData) {
   } catch {
     unitResult("unit-unavailable");
   }
-  unitResult(chair ? "unit-chair-assigned" : "unit-assigned");
+  unitResult(chair ? "unit-chair-assigned" : "unit-assigned", authority.unit.type);
 }
 
-function unitResult(status: string): never {
+function unitResult(status: string, type?: UnitType): never {
   revalidatePath("/");
-  redirect("/?section=volunteers&tab=organizations&unitStatus=" + status + "#volunteer-units");
+  const group = type === "branch" || type === "branchChapter" ? "branch" : type === "affinity" ? "affinity" : "chapter";
+  redirect(`/?section=volunteers&tab=organizations&group=${group}&unitStatus=${status}#volunteer-units`);
 }
 
 async function unitAuthority() {
@@ -86,7 +87,7 @@ export async function giveUnitBadge(form: FormData) {
   const unitId = String(form.get("unitId") ?? "");
   const email = String(form.get("email") ?? "");
   const label = String(form.get("label") ?? "").trim();
-  await requireUnitManager(unitId);
+  const { unit } = await requireUnitManager(unitId);
   const [memberships, roles, applications] = await Promise.all([unitMemberships(), openUnitRoles(), roleApplications()]);
   const accepted = applications.some(item => item.email === email && item.decision === "approved" &&
     roles.some(role => role.id === item.roleId && role.unitId === unitId));
@@ -94,18 +95,18 @@ export async function giveUnitBadge(form: FormData) {
     unitResult("invalid-badge");
   }
   await awardUnitBadge(email, unitId, label).catch(() => unitResult("unit-unavailable"));
-  unitResult("badge-awarded");
+  unitResult("badge-awarded", unit.type);
 }
 
 export async function addUnitRole(form: FormData) {
   const unitId = String(form.get("unitId") ?? "");
   const title = String(form.get("title") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
-  await requireUnitManager(unitId);
+  const { unit } = await requireUnitManager(unitId);
   if (!title || title.length > 60 || !description || description.length > 1000 ||
       !(await volunteerUnits()).some(unit => unit.id === unitId)) unitResult("invalid-role");
   await postUnitRole(unitId, title, description).catch(() => unitResult("unit-unavailable"));
-  unitResult("role-posted");
+  unitResult("role-posted", unit.type);
 }
 
 export async function applyToUnitRole(form: FormData) {
@@ -128,7 +129,7 @@ export async function reviewUnitApplication(form: FormData) {
   const application = (await roleApplications()).find(item => item.id === id);
   const role = (await openUnitRoles()).find(item => item.id === application?.roleId);
   if (!role || !application || application.decision || (decision !== "approved" && decision !== "declined")) unitResult("invalid-role");
-  await requireUnitManager(role.unitId);
+  const { unit } = await requireUnitManager(role.unitId);
   const saved = await decideUnitApplication(id, decision).catch(() => false);
-  unitResult(saved ? "application-reviewed" : "invalid-role");
+  unitResult(saved ? "application-reviewed" : "invalid-role", unit.type);
 }

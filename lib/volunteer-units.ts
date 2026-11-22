@@ -5,6 +5,7 @@ export const unitTypes = {
   chapter: "Chapter",
   branch: "Student branch",
   branchChapter: "Student branch chapter",
+  affinity: "Affinity group",
 };
 
 export type UnitType = keyof typeof unitTypes;
