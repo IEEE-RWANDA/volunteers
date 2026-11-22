@@ -11,8 +11,12 @@ export async function updateProfile(form: FormData) {
   const name = String(form.get("name") ?? "").trim();
   const bio = String(form.get("bio") ?? "").trim();
   if (!name || name.length > 120 || bio.length > 500) redirect("/?section=volunteers&profile=invalid#your-profile");
+  const ieeeMemberNumber = String(form.get("ieeeMemberNumber") ?? "").trim();
+  if (ieeeMemberNumber && !/^[0-9]{1,20}$/.test(ieeeMemberNumber)) {
+    redirect("/?section=volunteers&profile=invalid-member-number#your-profile");
+  }
   try {
-    await saveVolunteerProfile({ email, name, bio });
+    await saveVolunteerProfile({ email, name, bio, ieeeMemberNumber });
   } catch {
     redirect("/?section=volunteers&profile=unavailable#your-profile");
   }

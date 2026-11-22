@@ -5,11 +5,16 @@ import { listIntakeRecords, readIntakeFile, readIntakeJson, saveIntakeFile } fro
 
 type Volunteer = { email: string; name: string; committee?: string; officerTitle?: string; bio?: string };
 
-type Profile = { email: string; name: string; bio: string };
+type Profile = { email: string; name: string; bio: string; ieeeMemberNumber?: string };
 
 export async function saveVolunteerProfile(profile: Profile) {
   const id = createHash("sha256").update(profile.email).digest("hex");
   await saveIntakeFile(`volunteer-profiles/${id}.json`, JSON.stringify(profile), true);
+}
+
+export async function volunteerProfile(email: string) {
+  const id = createHash("sha256").update(email).digest("hex");
+  return readIntakeJson<Profile>(`volunteer-profiles/${id}.json`);
 }
 
 export async function roster() {

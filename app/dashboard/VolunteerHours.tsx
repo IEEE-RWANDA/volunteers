@@ -3,13 +3,13 @@ import VolunteerAvatar from "./VolunteerAvatar";
 import UnitLogo from "./UnitLogo";
 import { eventParticipants, eventsForHours } from "@/lib/event-hours";
 import { updateProfile } from "./profile-actions";
-import { roster } from "@/lib/volunteer-roster";
+import { roster, volunteerProfile } from "@/lib/volunteer-roster";
 import { formatHours, volunteerHours } from "@/lib/volunteer-hours";
 import { logHours } from "./hours-actions";
 import HoursFields from "./HoursFields";
 
 export default async function VolunteerHours({ email, status, profileStatus, avatar, googleName }: { email: string; status?: string; profileStatus?: string; avatar?: string; googleName?: string }) {
-  const [directory, entries, events, experience] = await Promise.all([roster(), volunteerHours(email), eventsForHours(email), volunteerExperience(email)]);
+  const [directory, entries, events, experience, privateProfile] = await Promise.all([roster(), volunteerHours(email), eventsForHours(email), volunteerExperience(email), volunteerProfile(email)]);
   const names = new Map(directory.map(member => [member.email, member.name]));
   const profile = directory.find(member => member.email === email);
   const total = entries.reduce((sum, entry) => sum + entry.minutes, 0);
@@ -33,7 +33,11 @@ export default async function VolunteerHours({ email, status, profileStatus, ava
             <label className="block text-sm font-semibold">Bio (optional)
               <textarea name="bio" className="login-input" defaultValue={profile?.bio ?? ""} maxLength={500} rows={3} />
             </label>
+            <label className="block text-sm font-semibold">IEEE member number (optional)
+              <input name="ieeeMemberNumber" className="login-input" inputMode="numeric" pattern="[0-9]{1,20}" maxLength={20} defaultValue={privateProfile?.ieeeMemberNumber ?? ""} />
+            </label>
             <button type="submit" className="btn btn-primary">Save profile</button>
+            {profileStatus === "invalid-member-number" && <p role="alert" className="text-sm text-red-700">Enter your IEEE member number using digits only.</p>}
             {profileStatus === "saved" && <p role="status" className="text-sm font-semibold text-blue">Profile updated.</p>}
             {profileStatus === "invalid" && <p role="alert" className="text-sm text-red-700">Enter a display name and keep your bio under 500 characters.</p>}
             {profileStatus === "unavailable" && <p role="alert" className="text-sm text-red-700">Your profile could not be saved. Try again.</p>}

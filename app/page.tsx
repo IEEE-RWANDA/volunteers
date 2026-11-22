@@ -53,6 +53,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Das
               <div className="mt-5 border-t border-line pt-5">
                 <p className="text-sm text-ink-soft">New to the Volunteer Hub?</p>
                 <a href="/api/auth/google?mode=request" className="mt-1 inline-block text-sm font-semibold text-blue underline underline-offset-4">Request access with Google</a>
+                <p className="mt-2 text-sm text-ink-soft">If you are a unit chair, use the Google account with the exact email listed for you in IEEE vTools.</p>
               </div>
             </div>
           )}
