@@ -12,19 +12,21 @@ export default async function Page({ searchParams }: { searchParams: Promise<Das
 
   return (
     <main className="login-layout">
-      <section className="login-intro">
+      <header className="login-masthead">
         <Image className="brand-logo" src="/img/logo-full.png" alt="IEEE Rwanda" width={190} height={68} priority />
-        <div>
+      </header>
+      <section className="login-intro" aria-labelledby="login-title">
+        <Image src="/img/ieee-rwanda-volunteers.jpg" alt="" fill sizes="(max-width: 760px) 100vw, 58vw" preload className="login-photo" />
+        <div className="login-intro-content">
           <p className="eyebrow">IEEE Rwanda Subsection</p>
-          <h1>Volunteer Hub</h1>
-          <p className="intro-copy">Coordinate events and funding across IEEE Rwanda’s committees.</p>
+          <h1 id="login-title">Volunteer Hub</h1>
+          <p className="intro-copy">Organize events, manage funding, and track your volunteer work.</p>
         </div>
-        <a href="https://www.ieeerwanda.org/" className="font-semibold underline underline-offset-4">IEEE Rwanda website</a>
       </section>
       <section className="login-form" aria-labelledby="sign-in">
         <div className="w-full max-w-sm">
-          <h2 id="sign-in" className="font-display text-3xl font-bold text-navy">Sign in</h2>
-          <p className="mt-2 text-ink-soft">Access your volunteer dashboard.</p>
+          <h2 id="sign-in" className="font-display text-4xl font-extrabold tracking-tight text-navy">Sign in</h2>
+          <p className="mt-2 text-ink-soft">{process.env.NODE_ENV === "development" ? "Enter your local preview credentials." : "Use your approved Google account."}</p>
           {process.env.NODE_ENV === "development" ? <form action={signIn} className="mt-7 space-y-5">
             <label className="block text-sm font-semibold">Email address
               <input className="login-input" name="email" type="email" autoComplete="username" maxLength={254} required />
@@ -48,10 +50,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Das
                 <p role="status" className="text-sm font-semibold text-navy">Access requested. Sign in again after an admin approves your request.</p>
               )}
               <a href="/api/auth/google" className="btn btn-primary w-full">Sign in with Google</a>
-              <a href="/api/auth/google?mode=request" className="block text-center text-sm font-semibold text-blue underline">Request access with Google</a>
+              <div className="mt-5 border-t border-line pt-5">
+                <p className="text-sm text-ink-soft">New to the Volunteer Hub?</p>
+                <a href="/api/auth/google?mode=request" className="mt-1 inline-block text-sm font-semibold text-blue underline underline-offset-4">Request access with Google</a>
+              </div>
             </div>
           )}
-          <Link href="/privacy" className="mt-5 block text-center text-sm text-ink-soft underline">Privacy notice</Link>
+          <Link href="/privacy" className="mt-6 inline-block text-xs text-ink-soft underline underline-offset-4">Privacy notice</Link>
         </div>
       </section>
     </main>
