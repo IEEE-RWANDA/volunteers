@@ -1,60 +1,135 @@
+import { volunteerExperience } from "@/lib/volunteer-units";
+import UnitLogo from "./UnitLogo";
+import { eventParticipants, eventsForHours } from "@/lib/event-hours";
+import { updateProfile } from "./profile-actions";
 import { roster } from "@/lib/volunteer-roster";
 import { formatHours, volunteerHours } from "@/lib/volunteer-hours";
 import { logHours } from "./hours-actions";
+import VolunteerUnits from "./VolunteerUnits";
 import HoursFields from "./HoursFields";
 
-export default async function VolunteerHours({ email, status }: { email: string; status?: string }) {
-  const [directory, entries] = await Promise.all([roster(), volunteerHours(email)]);
+export default async function VolunteerHours({ email, status, profileStatus, unitStatus, admin }: { email: string; status?: string; profileStatus?: string; unitStatus?: string; admin: boolean }) {
+  const [directory, entries, events, experience] = await Promise.all([roster(), volunteerHours(email), eventsForHours(email), volunteerExperience(email)]);
+  const names = new Map(directory.map(member => [member.email, member.name]));
+  const profile = directory.find(member => member.email === email);
   const total = entries.reduce((sum, entry) => sum + entry.minutes, 0);
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[1.25fr_1fr]">
-      <section className="panel" aria-labelledby="hours-title">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="hours-title" className="panel-title">Log volunteer hours</h2>
-          <p className="text-sm text-ink-soft"><strong className="text-navy">{formatHours(total)}</strong> logged</p>
-        </div>
-        <form action={logHours} className="mt-4 space-y-4">
-          <HoursFields />
-          <button className="btn btn-primary" type="submit">Log hours</button>
-          {status === "saved" && <p role="status" className="text-sm font-semibold text-blue">Hours saved.</p>}
-          {status === "invalid" && <p role="alert" className="text-sm text-red-700">Enter an activity, a date up to today, and a duration from 1 minute to 24 hours.</p>}
-          {status === "unavailable" && <p role="alert" className="text-sm text-red-700">Hours could not be saved. Try again.</p>}
-        </form>
-
-        <div className="mt-6 border-t border-line pt-5">
-          <h3 className="font-semibold text-navy">Your hours history</h3>
-          {entries.length ? (
-            <ul className="mt-2 divide-y divide-line">
-              {entries.map(entry => (
-                <li key={entry.id} className="flex items-baseline justify-between gap-4 py-2.5">
+      <div className="space-y-5">
+        <section className="panel" id="your-profile" aria-labelledby="profile-title">
+          <h2 id="profile-title" className="panel-title">Your profile</h2>
+          <p className="mt-1 text-sm text-ink-soft">{email}</p>
+          <form action={updateProfile} className="mt-4 space-y-3">
+            <label className="block text-sm font-semibold">Display name
+              <input name="name" className="login-input" defaultValue={profile?.name ?? ""} maxLength={120} required />
+            </label>
+            <label className="block text-sm font-semibold">Bio (optional)
+              <textarea name="bio" className="login-input" defaultValue={profile?.bio ?? ""} maxLength={500} rows={3} />
+            </label>
+            <button type="submit" className="btn btn-primary">Save profile</button>
+            {profileStatus === "saved" && <p role="status" className="text-sm font-semibold text-blue">Profile updated.</p>}
+            {profileStatus === "invalid" && <p role="alert" className="text-sm text-red-700">Enter a display name and keep your bio under 500 characters.</p>}
+            {profileStatus === "unavailable" && <p role="alert" className="text-sm text-red-700">Your profile could not be saved. Try again.</p>}
+          </form>
+        </section>
+        {experience.length > 0 && (
+          <section className="panel" aria-labelledby="volunteer-experience">
+            <h2 id="volunteer-experience" className="panel-title">Volunteer experience</h2>
+            <ul className="mt-3 divide-y divide-line">
+              {experience.map(item => (
+                <li key={`${item.unit.id}:${item.title}`} className="flex items-start gap-3 py-3">
+                  <UnitLogo unit={item.unit} />
                   <div className="min-w-0">
-                    <p className="wrap-anywhere font-medium text-navy">{entry.activity}</p>
-                    <time dateTime={entry.date} className="text-sm text-ink-soft">{entry.date}</time>
+                    <p className="wrap-anywhere font-semibold text-navy">{item.title}</p>
+                    <p className="wrap-anywhere text-sm text-ink-soft">{item.unit.label}</p>
+                    {item.description && <p className="mt-1 whitespace-pre-wrap wrap-anywhere text-sm text-ink-soft">{item.description}</p>}
                   </div>
-                  <span className="shrink-0 text-sm font-semibold text-navy">{formatHours(entry.minutes)}</span>
                 </li>
               ))}
             </ul>
-          ) : <p className="mt-2 text-sm text-ink-soft">Your logged activities will appear here.</p>}
-        </div>
-      </section>
-
-      <section className="panel" aria-labelledby="directory-title">
-        <h2 id="directory-title" className="panel-title">Volunteer directory</h2>
-        <ul className="mt-3 divide-y divide-line">
-          {directory.map(volunteer => (
-            <li key={volunteer.email} className="py-2.5">
-              <p className="wrap-anywhere font-medium text-navy">
-                {volunteer.name}{volunteer.email === email && <span className="ms-2 text-xs text-ink-soft">(you)</span>}
-              </p>
-              {(volunteer.officerTitle || volunteer.committee) && (
-                <p className="mt-1 text-sm text-ink-soft">{[volunteer.officerTitle, volunteer.committee].filter(Boolean).join(" · ")}</p>
+          </section>
+        )}
+        <section className="panel" aria-labelledby="hours-title">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="hours-title" className="panel-title">Volunteer hours</h2>
+            <p className="text-sm text-ink-soft"><strong className="text-navy">{formatHours(total)}</strong> logged</p>
+          </div>
+          {status === "saved" && <p role="status" className="mt-3 text-sm font-semibold text-blue">Hours saved.</p>}
+          {status === "forbidden" && <p role="alert" className="mt-3 text-sm text-red-700">You cannot log hours for this event.</p>}
+          {status === "invalid" && <p role="alert" className="mt-3 text-sm text-red-700">Select event volunteers and enter a duration from 1 minute to 24 hours.</p>}
+          {status === "unavailable" && <p role="alert" className="mt-3 text-sm text-red-700">Hours could not be saved. Try again.</p>}
+          {events.length ? (
+            <div className="mt-4 space-y-2">
+              <h3 className="font-semibold text-navy">Record hours for an event</h3>
+              {events.map(event => (
+                <details key={event.id} className="rounded-md border border-line p-3 text-sm">
+                  <summary className="cursor-pointer font-semibold text-navy">{event.title} · {event.date.slice(0, 10)}</summary>
+                  <form action={logHours} aria-label={`Record hours for ${event.title}`} className="mt-3 space-y-3">
+                    <input type="hidden" name="eventId" value={event.id} />
+                    <fieldset>
+                      <legend className="font-semibold">Event volunteers</legend>
+                      <ul className="mt-2 space-y-1">
+                        {eventParticipants(event).map(recipient => (
+                          <li key={recipient}>
+                            <label className="flex cursor-pointer items-center gap-2">
+                              <input type="checkbox" name="volunteer" value={recipient} className="accent-blue" />
+                              {names.get(recipient) ?? recipient}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </fieldset>
+                    <HoursFields />
+                    <button className="btn btn-primary" type="submit">Log event hours</button>
+                  </form>
+                </details>
+              ))}
+            </div>
+          ) : <p className="mt-3 text-sm text-ink-soft">Event leads and student branch chairs can record hours after an event ends.</p>}
+          <div className="mt-6 border-t border-line pt-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-semibold text-navy">Your hours history</h3>
+              {entries.some(entry => entry.eventId) && (
+                <a className="action-link text-sm" href="/api/volunteers/certificate" download>Download service certificate (PDF)</a>
               )}
-            </li>
-          ))}
-        </ul>
-      </section>
+            </div>
+            {entries.length ? (
+              <ul className="mt-2 divide-y divide-line">
+                {entries.map(entry => (
+                  <li key={entry.id} className="flex items-baseline justify-between gap-4 py-2.5">
+                    <div className="min-w-0">
+                      <p className="wrap-anywhere font-medium text-navy">{entry.activity}</p>
+                      <time dateTime={entry.date} className="text-sm text-ink-soft">{entry.date}</time>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-navy">{formatHours(entry.minutes)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-2 text-sm text-ink-soft">Your logged activities will appear here.</p>}
+          </div>
+        </section>
+      </div>
+
+      <div className="space-y-5">
+        <VolunteerUnits members={directory} viewer={email} status={unitStatus} admin={admin} />
+        <section className="panel" aria-labelledby="directory-title">
+          <h2 id="directory-title" className="panel-title">Volunteer directory</h2>
+          <ul className="mt-3 divide-y divide-line">
+            {directory.map(volunteer => (
+              <li key={volunteer.email} className="py-2.5">
+                <p className="wrap-anywhere font-medium text-navy">
+                  {volunteer.name}{volunteer.email === email && <span className="ms-2 text-xs text-ink-soft">(you)</span>}
+                </p>
+                {volunteer.bio && <p className="mt-1 whitespace-pre-wrap wrap-anywhere text-sm text-ink-soft">{volunteer.bio}</p>}
+                {(volunteer.officerTitle || volunteer.committee) && (
+                  <p className="mt-1 text-sm text-ink-soft">{[volunteer.officerTitle, volunteer.committee].filter(Boolean).join(" · ")}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </div>
   );
 }

@@ -45,7 +45,9 @@ export async function releaseFunding(request: Submission, email: string, date: s
   if (ledger.some(entry => entry.requestId === request.id)) return "funding-state";
   const activity = activityLink(request.vtools);
   const previous = (await volunteerSubmissions(request.submittedBy, ledger)).filter(item =>
-    item.id !== request.id && item.releasedAt && item.date < today && (!activity || activityLink(item.vtools) !== activity));
+    item.id !== request.id && item.releasedAt && item.date < today &&
+    (!(request.fundingEventId && item.fundingEventId === request.fundingEventId)) &&
+    (!activity || activityLink(item.vtools) !== activity));
   const reports = await Promise.all(previous.map(item => fundingReport(item.id)));
   if (reports.some(report => !report?.attachments.some(file => file.type === "receipt"))) return "funding-receipts";
   if (allocations.length) {

@@ -18,7 +18,7 @@ export default function OverviewActivity({ entries, records, statuses }: {
     <section className="panel mt-5" aria-labelledby="overview-activity">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="panel-title" id="overview-activity">Your activity</h2>
-        <Link className="action-link" href="/?section=volunteers">View hours or log an activity</Link>
+        <Link className="action-link" href="/?section=volunteers">View volunteer hours</Link>
       </div>
       <dl className="mt-4 grid gap-3 sm:grid-cols-3">
         {[

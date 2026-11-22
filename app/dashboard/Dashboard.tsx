@@ -5,11 +5,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTeamAccess } from "@/lib/session";
 import { organizerOptions } from "@/lib/volunteer-roster";
-import { volunteerSubmissions } from "@/lib/volunteer-store";
+import { volunteerEvents, volunteerSubmissions } from "@/lib/volunteer-store";
 import VolunteerForm from "@/app/components/VolunteerForm";
-import { signOut } from "@/app/session-actions";
+import { cookies } from "next/headers";
+import { googleAvatarCookie, googleAvatarUrl } from "@/lib/google-avatar";
+import AccountMenu from "./AccountMenu";
 import OverviewActivity from "./OverviewActivity";
+import { volunteerUnits } from "@/lib/volunteer-units";
 import { volunteerHours } from "@/lib/volunteer-hours";
+import VolunteerRoleBoard from "./VolunteerRoleBoard";
 import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
@@ -18,15 +22,15 @@ import "./workspace.css";
 
 const baseNavigation = [
   { id: "overview", label: "Overview", href: "/" },
-  { id: "events", label: "Events", href: "/?section=events" },
+  { id: "events", label: "Event/Activity", href: "/?section=events" },
   { id: "funding", label: "Funding & reporting", href: "/?section=funding" },
   { id: "volunteers", label: "Volunteers", href: "/?section=volunteers" },
 ] as const;
 
-export type DashboardParams = { section?: string; hours?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string };
+export type DashboardParams = { section?: string; hours?: string; profile?: string; unitStatus?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string; q?: string; role?: string; roleView?: string };
 
 export default async function Dashboard({ email, params }: { email: string; params: DashboardParams }) {
-  const { section, hours, team, report, request, fund, tab } = params;
+  const { section, hours, profile, unitStatus, team, report, request, fund, tab } = params;
   const access = await getTeamAccess();
   if (section === "team" && !access) redirect("/");
   const navigation = access
@@ -37,10 +41,12 @@ export default async function Dashboard({ email, params }: { email: string; para
   const funding = current.id === "funding" && !reporting;
   const funds = funding ? await fundsForVolunteer(email) : [];
   const initialFund = funds.find(item => item.id === fund && item.remainingCents > 0)?.id;
+  const eventUnits = current.id === "events" ? await volunteerUnits() : [];
   const organizers = funding || current.id === "events" ? await organizerOptions() : [];
-  const [records, activityEntries] = await Promise.all([
+  const [records, activityEntries, fundingActivities] = await Promise.all([
     current.id === "overview" || reporting ? volunteerSubmissions(email) : [],
     current.id === "overview" ? volunteerHours(email) : [],
+    funding ? volunteerEvents() : [],
   ]);
   const reportStatuses = await fundingReportStatuses(records.filter(record => record.kind === "funding").map(record => record.id));
   const eventCount = records.filter(record => record.kind === "event").length;
@@ -61,12 +67,7 @@ export default async function Dashboard({ email, params }: { email: string; para
               </Link>
             ))}
           </nav>
-          <div className="dashboard-account">
-            <p className="wrap-anywhere font-semibold">{email}</p>
-            <form action={signOut}>
-              <button type="submit" className="cursor-pointer whitespace-nowrap text-blue hover:underline">Sign out</button>
-            </form>
-          </div>
+          <AccountMenu email={email} avatar={googleAvatarUrl((await cookies()).get(googleAvatarCookie)?.value)} />
         </div>
       </header>
 
@@ -96,7 +97,7 @@ export default async function Dashboard({ email, params }: { email: string; para
               <Link className="workflow workflow-events" href="/?section=events">
                 <span className="workflow-icon nav-glyph nav-glyph-1" aria-hidden="true" />
                 <span className="min-w-0">
-                  <span className="workflow-title">Add an event</span>
+                  <span className="workflow-title">Create an event or activity</span>
                   <span className="workflow-description">Submit dates, venue, and the vTools event link.</span>
                 </span>
                 <span className="workflow-arrow" aria-hidden="true">→</span>
@@ -121,7 +122,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                     <li key={record.id} className="submission-row">
                       <div className="min-w-0">
                         <strong className="wrap-anywhere text-navy">{record.title}</strong>
-                        <p className="mt-1 text-sm text-ink-soft">{record.kind === "event" ? "Event submission" : "Funding request"} · {record.date.replace("T", " ")}</p>
+                        <p className="mt-1 text-sm text-ink-soft">{record.kind === "event" ? "Event/activity submission" : "Funding request"} · {record.date.replace("T", " ")}</p>
                         {record.leadVolunteerName && (
                           <p className="mt-1 wrap-anywhere text-sm text-ink-soft">
                             <strong className="text-navy">Lead volunteer</strong> · {record.leadVolunteerName} · {record.email}
@@ -167,21 +168,37 @@ export default async function Dashboard({ email, params }: { email: string; para
                 <ReleasedFunds records={records} statuses={reportStatuses} />
                 <FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} />
               </>
-            ) : current.id === "volunteers" ? <VolunteerHours email={email} status={hours} /> :
+            ) : current.id === "volunteers" ? (
+              <>
+                <nav aria-label="Volunteer sections" className="dashboard-nav mb-5">
+                  <Link href="/?section=volunteers" aria-current={tab !== "roles" ? "page" : undefined}>Profile and units</Link>
+                  <Link href="/?section=volunteers&tab=roles" aria-current={tab === "roles" ? "page" : undefined}>Volunteer roles</Link>
+                </nav>
+                {tab === "roles" ? <VolunteerRoleBoard email={email} params={params} /> :
+                  <VolunteerHours email={email} status={hours} profileStatus={profile} unitStatus={unitStatus} admin={access?.role === "admin"} />}
+              </>
+            ) :
               current.id === "team" && access ? <TeamView access={access} status={team} /> : funding ? (
                 <section className="panel">
                   <h2 id="funding-request" className="panel-title">Submit a funding request</h2>
-                  <VolunteerForm key={initialFund ?? "funding"} kind="funding" contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds} />
+                  {fundingActivities.some(item => item.submittedBy === email && item.vtools) ? (
+                    <VolunteerForm key={initialFund ?? "funding"} kind="funding" contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds}
+                      activities={fundingActivities.flatMap(item => item.submittedBy === email && item.vtools ? [{ id: item.id, title: item.title, date: item.date.slice(0, 10), vtools: item.vtools }] : [])} />
+                  ) : (
+                    <p className="mt-3 text-sm text-ink-soft">
+                      <Link href="/?section=events" className="action-link">Create an event or activity</Link> before requesting funding.
+                    </p>
+                  )}
                 </section>
               ) : (
                 <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
                   <section className="panel">
-                    <h2 className="panel-title">Event submission</h2>
-                    <VolunteerForm kind="event" contactEmail={email} organizers={organizers} />
+                    <h2 className="panel-title">Event/activity submission</h2>
+                    <VolunteerForm kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits.map(({ id, label }) => ({ id, label }))} />
                   </section>
                   <aside className="panel">
                     <h2 className="panel-title">Public calendar</h2>
-                    <p className="my-3 text-ink-soft">Event submissions go to IEEE Rwanda for review. Approved events can be added to the public calendar.</p>
+                    <p className="my-3 text-ink-soft">Submissions go to IEEE Rwanda for review. Approved events and activities can be added to the public calendar.</p>
                     <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
                   </aside>
                 </div>

@@ -1,6 +1,6 @@
 import type { FundAllocation, Submission } from "./volunteer-intake";
 import { del, get, list, put } from "@vercel/blob";
-import { link, mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 
@@ -8,9 +8,9 @@ const prefix = "volunteer-intake/";
 const directory = resolve(process.cwd(), ".volunteer-data");
 const local = process.env.NODE_ENV === "development";
 
-export async function saveIntakeFile(path: string, data: Buffer | string) {
+export async function saveIntakeFile(path: string, data: Buffer | string, overwrite = false) {
   if (!local) {
-    await put(prefix + path, data, { access: "private", allowOverwrite: false, contentType: "application/octet-stream" });
+    await put(prefix + path, data, { access: "private", allowOverwrite: overwrite, contentType: "application/octet-stream" });
     return;
   }
   const destination = resolve(directory, path);
@@ -18,7 +18,8 @@ export async function saveIntakeFile(path: string, data: Buffer | string) {
   const pending = destination + "." + randomUUID() + ".pending";
   try {
     await writeFile(pending, data, { flag: "wx", mode: 0o600 });
-    await link(pending, destination);
+    if (overwrite) await rename(pending, destination);
+    else await link(pending, destination);
   } finally {
     await unlink(pending).catch(() => {});
   }
@@ -107,6 +108,16 @@ async function submissions() {
   const paths = await listIntakeRecords("records");
   const records = await Promise.all(paths.map(path => readIntakeJson<Submission>(path)));
   return records.filter((record) => record !== null).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+}
+
+export async function volunteerEvents() {
+  return (await submissions()).filter(record => record.kind === "event");
+}
+
+export async function ownVolunteerEvent(id: string, email: string) {
+  if (!submissionIdPattern.test(id)) return null;
+  const record = await readIntakeJson<Submission>(`records/${id}.json`);
+  return record?.kind === "event" && record.submittedBy === email ? record : null;
 }
 
 export async function volunteerSubmissions(email: string, releases?: AllocatedRelease[]) {

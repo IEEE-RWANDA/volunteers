@@ -3,9 +3,10 @@ import { attachmentCount, attachmentLimit, type Organizer, type Submission } fro
 import { fundingReport, ownFundingRequest, reportPath, type FundingReport } from "@/lib/funding-reports";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import { allocationTotal, fundsForVolunteer } from "@/lib/listed-funds";
-import { organizerOptions } from "@/lib/volunteer-roster";
+import { volunteerUnits } from "@/lib/volunteer-units";
+import { organizerDirectory } from "@/lib/volunteer-roster";
 import { getVolunteer } from "@/lib/session";
-import { removeIntakeFiles, saveIntakeFile } from "@/lib/volunteer-store";
+import { ownVolunteerEvent, removeIntakeFiles, saveIntakeFile } from "@/lib/volunteer-store";
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
@@ -116,22 +117,26 @@ export async function POST(request: Request) {
   const kind = field("kind");
   if (kind === "funding-report") return submitFundingReport(form, volunteer);
   if (kind !== "event" && kind !== "funding") return bad("Select a submission type.");
-  const title = field("title");
+  const activity = kind === "funding" ? await ownVolunteerEvent(field("fundingEventId"), volunteer) : null;
+  if (kind === "funding" && !activity) return bad("Select an event or activity you created before requesting funds.");
+  const title = activity?.title ?? field("title");
   const email = field("email");
   const leadVolunteerName = field("leadVolunteerName");
   let committee = field("committee");
   let organizers: Organizer[] | undefined;
+  let eventVolunteerEmails: string[] | undefined;
+  const eventUnitId = field("eventUnitId");
   const details = field("details");
-  const date = field("date");
+  const date = activity ? activity.date.slice(0, 10) : field("date");
   const end = field("end");
   const location = field("location");
   let amount: string | undefined;
   let fundAllocations: Submission["fundAllocations"];
-  const vtools = field("vtools");
+  const vtools = activity ? activity.vtools ?? "" : field("vtools");
   if (!title || title.length > 150 ||
       !details || details.length > 4000 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return bad(kind === "funding"
-      ? "Enter an activity name, description, and valid lead volunteer email."
+      ? "Enter the funding purpose and a valid lead volunteer email."
       : "Enter a title, description, and valid contact email.");
   }
   if (!validDate(date, kind === "event")) return bad("Enter a valid date.");
@@ -140,6 +145,9 @@ export async function POST(request: Request) {
   }
   if (!webLink(vtools)) return bad("Enter a valid vTools event link starting with https:// or http://.");
   if (kind === "event" && (!committee || committee.length > 150)) return bad("Enter the organizing committee.");
+  if (kind === "event" && eventUnitId && !(await volunteerUnits()).some(unit => unit.id === eventUnitId)) {
+    return bad("Select an existing unit for this event.");
+  }
   if (kind === "event" && field("acknowledgeVtools") !== "yes") {
     return bad("Confirm the IEEE Rwanda collaborator and contact email in vTools.");
   }
@@ -167,9 +175,10 @@ export async function POST(request: Request) {
   const chosen = new Set(form.getAll("organizer"));
   if (kind === "funding" && !chosen.size) return bad("Select at least one volunteer for the organizing committee.");
   if (chosen.size) {
-    const selected = (await organizerOptions()).filter(member => chosen.has(member.id));
+    const selected = (await organizerDirectory()).filter(member => chosen.has(member.id));
     if (selected.length !== chosen.size) return bad("A selected volunteer is no longer listed. Refresh and select again.");
     organizers = selected.map(({ name, committee }) => ({ name, committee }));
+    if (kind === "event") eventVolunteerEmails = selected.map(member => member.email);
     if (kind === "funding") {
       committee = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].join(", ") || "Volunteers";
     }
@@ -201,7 +210,7 @@ export async function POST(request: Request) {
   const id = randomUUID();
   const record: Submission = {
     id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools,
-    ...(kind === "event" ? { end, location, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const saved: string[] = [];

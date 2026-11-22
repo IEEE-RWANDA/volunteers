@@ -23,6 +23,9 @@ export type Submission = {
   listedFunds?: { id: string; name: string }[];
   committee: string;
   organizers?: Organizer[];
+  eventUnitId?: string;
+  fundingEventId?: string;
+  eventVolunteerEmails?: string[];
   details: string;
   date: string;
   end?: string;

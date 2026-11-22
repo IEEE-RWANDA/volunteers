@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { listIntakeRecords, readIntakeFile, saveIntakeFile } from "./volunteer-store";
 
-type Entry = { id: string; date: string; activity: string; minutes: number; recordedAt: string };
+type Entry = { eventId?: string; id: string; date: string; activity: string; minutes: number; recordedAt: string };
 type TeamEntry = Entry & { recipients: string[]; loggedBy: string };
 type HoursDetails = Pick<Entry, "date" | "activity" | "minutes">;
 
@@ -13,28 +13,16 @@ export function kigaliToday() {
   }).format(new Date());
 }
 
-export function parseHours(form: FormData, today: string) {
-  const date = form.get("date");
-  const activity = form.get("activity");
+export function parseHours(form: FormData) {
   const hours = form.get("hours");
   const minutes = form.get("minutes");
-  if (typeof date !== "string" || !/^\d{4}-\d\d-\d\d$/.test(date) || date > today ||
-      typeof activity !== "string" || !activity.trim() || activity.trim().length > 150 ||
-      typeof hours !== "string" || !/^\d{0,2}$/.test(hours) ||
+  if (typeof hours !== "string" || !/^\d{0,2}$/.test(hours) ||
       typeof minutes !== "string" || !/^\d{0,2}$/.test(minutes) || Number(minutes) > 59) return null;
-  const parsed = new Date(date + "T00:00:00Z");
-  if (!Number.isFinite(parsed.getTime()) || !parsed.toISOString().startsWith(date)) return null;
   const duration = Number(hours) * 60 + Number(minutes);
-  if (duration < 1 || duration > 1440) return null;
-  return { date, activity: activity.trim(), minutes: duration };
+  return duration >= 1 && duration <= 1440 ? duration : null;
 }
 
-export async function saveVolunteerHours(email: string, details: HoursDetails) {
-  const entry = { ...details, id: randomUUID(), recordedAt: new Date().toISOString() };
-  await saveIntakeFile(`${folder(email)}/${entry.id}.json`, JSON.stringify(entry));
-}
-
-export async function saveTeamHours(loggedBy: string, recipients: string[], details: HoursDetails) {
+export async function saveTeamHours(loggedBy: string, recipients: string[], details: HoursDetails & { eventId: string }) {
   const entry: TeamEntry = { ...details, id: randomUUID(), recordedAt: new Date().toISOString(), loggedBy, recipients };
   await saveIntakeFile(`team-hours/${entry.id}.json`, JSON.stringify(entry));
 }

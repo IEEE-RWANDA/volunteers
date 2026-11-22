@@ -5,17 +5,15 @@ import { formatHours, teamHourTotals } from "@/lib/volunteer-hours";
 import { reviewReport } from "./report-review-actions";
 import AdminAccessRequests from "./AdminAccessRequests";
 import AdminFundingRequests from "./AdminFundingRequests";
-import HoursFields from "./HoursFields";
-import { addVolunteer, logTeamHours } from "./team-actions";
+import VolunteerUnits from "./VolunteerUnits";
+import { addVolunteer } from "./team-actions";
 
 type Access = NonNullable<Awaited<ReturnType<typeof getTeamAccess>>>;
 
 const messages: Record<string, { text: string; error?: boolean }> = {
   "volunteer-added": { text: "Volunteer added to the directory." },
-  "hours-saved": { text: "Hours logged for the selected volunteers." },
   "invalid-volunteer": { text: "Enter a name, committee, and valid email.", error: true },
   duplicate: { text: "A volunteer with that email is already listed.", error: true },
-  "invalid-hours": { text: "Select volunteers you manage and enter a valid date and duration.", error: true },
   unavailable: { text: "The change could not be saved. Try again.", error: true },
 };
 
@@ -41,19 +39,17 @@ export default async function TeamView({ access, status }: { access: Access; sta
       )}
       {access.role === "admin" && <AdminAccessRequests status={status} />}
       {access.role === "admin" && <AdminFundingRequests status={status} />}
+      {access.role === "admin" && <VolunteerUnits members={members} viewer={access.email} admin />}
       <div className={access.role === "admin" ? "grid items-start gap-5 lg:grid-cols-[1.4fr_1fr]" : "max-w-3xl"}>
         <section className="panel" aria-labelledby="team-hours">
           <h2 id="team-hours" className="panel-title">{access.role === "lead" ? access.committee : "Volunteer roster"}</h2>
-          <p className="mt-2 text-sm text-ink-soft">See each volunteer’s total. Select volunteers to log the same activity and duration for each person.</p>
+          <p className="mt-2 text-sm text-ink-soft">See each volunteer’s total. Event leads and student branch chairs log hours from the Volunteers page.</p>
           {members.length ? (
-            <form action={logTeamHours} className="mt-5 space-y-4">
-              <fieldset>
-                <legend className="text-sm font-semibold text-navy">Select volunteers</legend>
+            <div className="mt-5">
                 <ul className="mt-2 divide-y divide-line rounded-md border border-line">
                   {members.map(member => (
                     <li key={member.email}>
-                      <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-paper-2">
-                        <input className="size-4 shrink-0 accent-blue" type="checkbox" name="volunteer" value={member.email} />
+                      <div className="flex items-center gap-3 px-3 py-2.5">
                         <span className="min-w-0 flex-1">
                           <span className="block wrap-anywhere font-semibold text-navy">{member.name}</span>
                           {(member.officerTitle || member.committee) && (
@@ -61,14 +57,11 @@ export default async function TeamView({ access, status }: { access: Access; sta
                           )}
                         </span>
                         <span className="shrink-0 text-sm font-semibold text-navy">{formatHours(totals.get(member.email) ?? 0)}</span>
-                      </label>
+                      </div>
                     </li>
                   ))}
                 </ul>
-              </fieldset>
-              <HoursFields />
-              <button className="btn btn-primary" type="submit">Log hours for selected volunteers</button>
-            </form>
+            </div>
           ) : <p className="mt-4 text-sm text-ink-soft">No volunteers are listed in this committee.</p>}
         </section>
         {access.role === "admin" && (

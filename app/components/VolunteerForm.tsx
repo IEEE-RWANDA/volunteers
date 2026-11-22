@@ -9,13 +9,15 @@ import { attachmentCount, attachmentLimit, type OrganizerOption } from "@/lib/vo
 
 const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper px-3 py-2.5 font-normal text-ink focus:border-blue focus:outline-2 focus:outline-blue/30";
 
-export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string }) {
+export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string }[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
   const [selection, setSelection] = useState<string[]>([]);
   const [selectedFunds, setSelectedFunds] = useState<string[]>(initialFund ? [initialFund] : []);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
+  const [activityId, setActivityId] = useState("");
+  const activity = activities.find(item => item.id === activityId);
   const funding = kind === "funding";
   const committees = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].sort();
   const fundOptions = funds.filter(fund => fund.remainingCents > 0 || selectedFunds.includes(fund.id)).map(fund => ({
@@ -63,6 +65,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         return;
       }
       form.reset();
+      setActivityId("");
       setSelection([]);
       setSelectedFunds([]);
       setFundAmounts({});
@@ -76,15 +79,25 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   }
 
   return (
-    <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event submission"}>
+    <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event/activity submission"}>
       <input type="hidden" name="kind" value={kind} />
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
           {funding && <h3 className="font-display text-lg font-bold text-navy">Activity and funding details</h3>}
-          <label className="block font-semibold">
-            {funding ? "Activity name" : "Event title"}
-            <input name="title" className={field} maxLength={150} required />
-          </label>
+          {funding ? (
+            <label className="block font-semibold">
+              Event or activity
+              <select name="fundingEventId" className={field} required value={activityId} onChange={event => setActivityId(event.target.value)}>
+                <option value="" disabled>Select an event or activity</option>
+                {activities.map(item => <option key={item.id} value={item.id}>{item.title} · {item.date}</option>)}
+              </select>
+            </label>
+          ) : (
+            <label className="block font-semibold">
+              Event or activity title
+              <input name="title" className={field} maxLength={150} required />
+            </label>
+          )}
           <div className={`grid gap-4 ${funding ? "@min-[800px]:grid-cols-2" : "sm:grid-cols-2"}`}>
             {!funding && (
               <label className="block min-w-0 font-semibold">
@@ -105,10 +118,12 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
               {funding ? "Lead volunteer email" : "Contact email"}
               <input name="email" type="email" defaultValue={contactEmail} className={field} maxLength={254} required />
             </label>
-            <label className="block min-w-0 font-semibold">
-              {funding ? "Proposed date" : "Starts (Kigali time)"}
-              <input name="date" type={funding ? "date" : "datetime-local"} className={field} required />
-            </label>
+            {!funding && (
+              <label className="block min-w-0 font-semibold">
+                Starts (Kigali time)
+                <input name="date" type="datetime-local" className={field} required />
+              </label>
+            )}
             {!funding && (
               <label className="block min-w-0 font-semibold">
                 Ends (Kigali time)
@@ -116,6 +131,20 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
               </label>
             )}
           </div>
+          {!funding && (
+            <>
+              <p className="text-sm text-ink-soft">You’ll be listed as the event lead and can record hours for the volunteers selected below once the event ends.</p>
+              {eventUnits.length > 0 && (
+                <label className="block font-semibold">
+                  Chapter or student branch (optional)
+                  <select name="eventUnitId" className={field}>
+                    <option value="">No unit</option>
+                    {eventUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
           <RequestPicker name="organizer" label={funding ? "Organizing committee" : "Volunteers"} placeholder="Select volunteers"
             searchLabel="Search by name or committee" emptyMessage="An admin needs to add volunteers to the directory first."
             options={organizers} selectedIds={selection} onChange={setSelection} field={field} />
@@ -156,7 +185,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             </>
           )}
           <label className={`block font-semibold ${funding ? "@min-[440px]:flex @min-[440px]:flex-1 @min-[440px]:flex-col" : ""}`}>
-            {funding ? "Activity purpose and intended use of funds" : "Event description"}
+            {funding ? "Activity purpose and intended use of funds" : "Event or activity description"}
             <textarea name="details" rows={4} className={`${field} ${funding ? "@min-[440px]:flex-1" : ""}`} maxLength={4000} required />
           </label>
         </div>
@@ -165,7 +194,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             <h3 id="funding-documents" className="font-display text-lg font-bold text-navy">Documents and acknowledgement</h3>
             <label className="block font-semibold">
               vTools event link
-              <input name="vtools" type="url" className={field} maxLength={1000} required />
+              <input type="url" className={field} value={activity?.vtools ?? ""} placeholder="From the selected event or activity" readOnly />
             </label>
             <fieldset className="space-y-3">
               <legend className="sr-only">Required funding documents</legend>
@@ -209,7 +238,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
       )}
       <div className="flex justify-center">
         <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!organizers.length || !fundOptions.length))}>
-          {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event"}
+          {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event or activity"}
         </button>
       </div>
       {result.error && <p role="alert" className="font-semibold text-red-700">{result.error}</p>}
