@@ -41,56 +41,59 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
       <h2 id="volunteer-units-title" className="panel-title">Chapters and student branches</h2>
       {message && <p role="status" className="mt-3 text-sm font-semibold text-navy">{message}</p>}
       {(canCreate || manageable.length > 0) && (
-        <div className="mt-4 grid gap-5 md:grid-cols-2">
-          {canCreate && <form action={createUnit} aria-label="Create a unit" className="space-y-3">
-            <label className="block text-sm font-semibold">Unit name
-              <input name="name" className="login-input" required maxLength={120} />
-            </label>
-            {systemWide ? <label className="block text-sm font-semibold">Unit type
-              <select name="type" className="login-input">
-                {Object.entries(unitTypes).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
-              </select>
-            </label> : <input type="hidden" name="type" value="branchChapter" />}
-            <label className="block text-sm font-semibold">Parent student branch
-              <select name="parentId" className="login-input" required={!systemWide}>
-                {systemWide && <option value="">None</option>}
-                {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
-              <span className="mt-1 block font-normal text-ink-soft">Required for student branch chapters.</span>
-            </label>
-            <label className="block text-sm font-semibold">Organization logo
-              <input name="logo" className="login-input" type="file" accept="image/png,image/jpeg" required />
-              <span className="mt-1 block font-normal text-ink-soft">PNG or JPEG, up to 1 MB.</span>
-            </label>
-            <button className="btn btn-primary" type="submit">{systemWide ? "Create unit" : "Create student branch chapter"}</button>
-          </form>}
-          {manageable.length > 0 && members.length > 0 && (
-            <form action={assignUnit} aria-label="Assign a volunteer" className="space-y-3">
-              <label className="block text-sm font-semibold">Volunteer
-                <select name="email" className="login-input" required defaultValue="">
-                  <option disabled value="">Select a volunteer</option>
-                  {members.map(member => <option key={member.email} value={member.email}>{member.name} · {member.email}</option>)}
-                </select>
+        <details className="mt-4 rounded-lg border border-line bg-paper-2 p-4">
+          <summary className="cursor-pointer font-semibold text-navy">Manage organizations</summary>
+          <div className="mt-4 grid gap-5 md:grid-cols-2">
+            {canCreate && <form action={createUnit} aria-label="Create a unit" className="space-y-3">
+              <label className="block text-sm font-semibold">Unit name
+                <input name="name" className="login-input" required maxLength={120} />
               </label>
-              <label className="block text-sm font-semibold">Unit
-                <select name="unitId" className="login-input" required defaultValue="">
-                  <option disabled value="">Select a unit</option>
-                  {manageable.map(unit => <option key={unit.id} value={unit.id}>{unit.label} · {unitTypes[unit.type]}</option>)}
+              {systemWide ? <label className="block text-sm font-semibold">Unit type
+                <select name="type" className="login-input">
+                  {Object.entries(unitTypes).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
                 </select>
+              </label> : <input type="hidden" name="type" value="branchChapter" />}
+              <label className="block text-sm font-semibold">Parent student branch
+                <select name="parentId" className="login-input" required={!systemWide}>
+                  {systemWide && <option value="">None</option>}
+                  {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+                <span className="mt-1 block font-normal text-ink-soft">Required for student branch chapters.</span>
               </label>
-              {canAppointChair && <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" name="lead" value="yes" className="mt-1" />
-                <span>{systemWide ? "Designate as an authorized unit chair" : "Designate as chapter chair (student branch chapters only)"}</span>
-              </label>}
-              <button className="btn btn-primary" type="submit">Assign volunteer</button>
-            </form>
-          )}
-        </div>
+              <label className="block text-sm font-semibold">Organization logo
+                <input name="logo" className="login-input" type="file" accept="image/png,image/jpeg" required />
+                <span className="mt-1 block font-normal text-ink-soft">PNG or JPEG, up to 1 MB.</span>
+              </label>
+              <button className="btn btn-primary" type="submit">{systemWide ? "Create unit" : "Create student branch chapter"}</button>
+            </form>}
+            {manageable.length > 0 && members.length > 0 && (
+              <form action={assignUnit} aria-label="Assign a volunteer" className="space-y-3">
+                <label className="block text-sm font-semibold">Volunteer
+                  <select name="email" className="login-input" required defaultValue="">
+                    <option disabled value="">Select a volunteer</option>
+                    {members.map(member => <option key={member.email} value={member.email}>{member.name} · {member.email}</option>)}
+                  </select>
+                </label>
+                <label className="block text-sm font-semibold">Unit
+                  <select name="unitId" className="login-input" required defaultValue="">
+                    <option disabled value="">Select a unit</option>
+                    {manageable.map(unit => <option key={unit.id} value={unit.id}>{unit.label} · {unitTypes[unit.type]}</option>)}
+                  </select>
+                </label>
+                {canAppointChair && <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" name="lead" value="yes" className="mt-1" />
+                  <span>{systemWide ? "Designate as an authorized unit chair" : "Designate as chapter chair (student branch chapters only)"}</span>
+                </label>}
+                <button className="btn btn-primary" type="submit">Assign volunteer</button>
+              </form>
+            )}
+          </div>
+        </details>
       )}
       {units.length ? (
-        <ul className="mt-4 divide-y divide-line">
+        <ul className="mt-4 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {units.filter(unit => !unit.parentId).map(unit => (
-            <li key={unit.id} className="py-3">
+            <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
               <div className="mb-2 flex items-center gap-3">
                 <UnitLogo unit={unit} />
                 <div><p className="font-semibold text-navy">{unit.name}</p><p className="text-xs text-ink-soft">{unitTypes[unit.type]}</p></div>

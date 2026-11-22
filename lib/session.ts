@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { accessRequests, approvedVolunteer } from "./access-requests";
-import { googleAvatarCookie } from "./google-avatar";
+import { googleAvatarCookie, googleDisplayNameCookie } from "./google-avatar";
 import { cookies } from "next/headers";
 
 const cookieName = "volunteer_session";
@@ -148,4 +148,5 @@ export async function endVolunteerSession() {
   const store = await cookies();
   store.delete(cookieName);
   store.delete(googleAvatarCookie);
+  store.delete(googleDisplayNameCookie);
 }

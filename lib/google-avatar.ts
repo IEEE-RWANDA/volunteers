@@ -1,3 +1,4 @@
+export const googleDisplayNameCookie = "volunteer_google_name";
 export const googleAvatarCookie = "volunteer_google_avatar";
 
 export function googleAvatarUrl(value: unknown) {
@@ -6,4 +7,10 @@ export function googleAvatarUrl(value: unknown) {
   if (url.protocol !== "https:" || url.username || url.password || url.port ||
       !/^lh[0-9]+\.googleusercontent\.com$/.test(url.hostname)) return undefined;
   return url.href;
+}
+
+
+export function googleDisplayName(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  return Array.from(value.replace(/[\p{Cc}\p{Cf}]/gu, "").trim()).slice(0, 100).join("") || undefined;
 }

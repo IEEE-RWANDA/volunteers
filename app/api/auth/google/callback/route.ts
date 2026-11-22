@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { googleCallback, googleCredentials, googleFlowCookie, portalOrigin } from "@/lib/google-sign-in";
-import { googleAvatarCookie, googleAvatarUrl } from "@/lib/google-avatar";
+import { googleAvatarCookie, googleAvatarUrl, googleDisplayName, googleDisplayNameCookie } from "@/lib/google-avatar";
 import { requestAccess } from "@/lib/access-requests";
 import { startGoogleVolunteerSession } from "@/lib/session";
 
@@ -49,9 +49,10 @@ export async function GET(request: NextRequest) {
     if (await startGoogleVolunteerSession(normalizedEmail, sub)) {
       const response = finish("/");
       const avatar = googleAvatarUrl(picture);
-      response.cookies.set(googleAvatarCookie, avatar ?? "", {
-        httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: avatar ? 8 * 60 * 60 : 0,
-      });
+      const cookieOptions = { httpOnly: true, secure: true, sameSite: "lax" as const, path: "/" };
+      const displayName = googleDisplayName(name);
+      response.cookies.set(googleAvatarCookie, avatar ?? "", { ...cookieOptions, maxAge: avatar ? 8 * 60 * 60 : 0 });
+      response.cookies.set(googleDisplayNameCookie, displayName ?? "", { ...cookieOptions, maxAge: displayName ? 8 * 60 * 60 : 0 });
       return response;
     }
     if (mode !== "request") return finish("/?error=access");

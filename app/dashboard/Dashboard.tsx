@@ -8,12 +8,15 @@ import { organizerOptions } from "@/lib/volunteer-roster";
 import { volunteerEvents, volunteerSubmissions } from "@/lib/volunteer-store";
 import VolunteerForm from "@/app/components/VolunteerForm";
 import { cookies } from "next/headers";
-import { googleAvatarCookie, googleAvatarUrl } from "@/lib/google-avatar";
+import { googleAvatarCookie, googleAvatarUrl, googleDisplayName, googleDisplayNameCookie } from "@/lib/google-avatar";
 import AccountMenu from "./AccountMenu";
 import OverviewActivity from "./OverviewActivity";
 import { volunteerUnits } from "@/lib/volunteer-units";
 import { volunteerHours } from "@/lib/volunteer-hours";
 import VolunteerRoleBoard from "./VolunteerRoleBoard";
+import VolunteerDirectory from "./VolunteerDirectory";
+import VolunteerUnits from "./VolunteerUnits";
+import { roster } from "@/lib/volunteer-roster";
 import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
@@ -32,11 +35,16 @@ export type DashboardParams = { section?: string; hours?: string; profile?: stri
 export default async function Dashboard({ email, params }: { email: string; params: DashboardParams }) {
   const { section, hours, profile, unitStatus, team, report, request, fund, tab } = params;
   const access = await getTeamAccess();
+  const sessionCookies = await cookies();
+  const avatar = googleAvatarUrl(sessionCookies.get(googleAvatarCookie)?.value);
+  const googleName = googleDisplayName(sessionCookies.get(googleDisplayNameCookie)?.value);
   if (section === "team" && !access) redirect("/");
   const navigation = access
     ? [...baseNavigation, { id: "team", label: access.role === "admin" ? "Admin" : "My team", href: "/?section=team" } as const]
     : baseNavigation;
   const current = navigation.find(item => item.id === section) ?? navigation[0];
+  const volunteerTab = tab === "roles" || tab === "directory" || tab === "organizations" ? tab
+    : unitStatus && !tab ? "organizations" : "profile";
   const reporting = current.id === "funding" && (tab === "reporting" || Boolean(request) || report === "saved");
   const funding = current.id === "funding" && !reporting;
   const funds = funding ? await fundsForVolunteer(email) : [];
@@ -67,7 +75,7 @@ export default async function Dashboard({ email, params }: { email: string; para
               </Link>
             ))}
           </nav>
-          <AccountMenu email={email} avatar={googleAvatarUrl((await cookies()).get(googleAvatarCookie)?.value)} />
+          <AccountMenu email={email} avatar={avatar} googleName={googleName} />
         </div>
       </header>
 
@@ -171,11 +179,20 @@ export default async function Dashboard({ email, params }: { email: string; para
             ) : current.id === "volunteers" ? (
               <>
                 <nav aria-label="Volunteer sections" className="dashboard-nav mb-5">
-                  <Link href="/?section=volunteers" aria-current={tab !== "roles" ? "page" : undefined}>Profile and units</Link>
-                  <Link href="/?section=volunteers&tab=roles" aria-current={tab === "roles" ? "page" : undefined}>Volunteer roles</Link>
+                  {[
+                    { id: "profile", label: "Profile and hours", href: "/?section=volunteers" },
+                    { id: "organizations", label: "Organizations", href: "/?section=volunteers&tab=organizations" },
+                    { id: "directory", label: "Directory", href: "/?section=volunteers&tab=directory" },
+                    { id: "roles", label: "Volunteer roles", href: "/?section=volunteers&tab=roles" },
+                  ].map(item => (
+                    <Link key={item.id} href={item.href} aria-current={volunteerTab === item.id ? "page" : undefined}>{item.label}</Link>
+                  ))}
                 </nav>
-                {tab === "roles" ? <VolunteerRoleBoard email={email} params={params} /> :
-                  <VolunteerHours email={email} status={hours} profileStatus={profile} unitStatus={unitStatus} admin={access?.role === "admin"} />}
+                {volunteerTab === "roles" ? <VolunteerRoleBoard email={email} params={params} /> :
+                  volunteerTab === "directory" ? <VolunteerDirectory members={await roster()} viewer={email} /> :
+                  volunteerTab === "organizations" ? (
+                    <VolunteerUnits members={await roster()} viewer={email} status={unitStatus} admin={access?.role === "admin"} />
+                  ) : <VolunteerHours email={email} status={hours} profileStatus={profile} avatar={avatar} googleName={googleName} />}
               </>
             ) :
               current.id === "team" && access ? <TeamView access={access} status={team} /> : funding ? (

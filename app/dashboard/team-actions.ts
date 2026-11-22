@@ -65,7 +65,7 @@ export async function assignUnit(form: FormData) {
 
 function unitResult(status: string): never {
   revalidatePath("/");
-  redirect("/?section=volunteers&unitStatus=" + status + "#volunteer-units");
+  redirect("/?section=volunteers&tab=organizations&unitStatus=" + status + "#volunteer-units");
 }
 
 async function unitAuthority() {
