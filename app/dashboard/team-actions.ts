@@ -40,8 +40,9 @@ export async function createUnit(form: FormData) {
   const { email, units, chairs, systemWide } = await unitAuthority();
   if (!canCreateUnit(email, type, units.find(unit => unit.id === parentId), systemWide, chairs)) unitResult("unit-forbidden");
   const logo = form.get("logo");
-  if (!(logo instanceof File) || !logo.size || logo.size > 1024 * 1024) unitResult("invalid-unit-logo");
-  const added = await addVolunteerUnit(name, type, parentId, Buffer.from(await logo.arrayBuffer())).catch(() => false);
+  if (logo !== null && (!(logo instanceof File) || logo.size > 1024 * 1024)) unitResult("invalid-unit-logo");
+  const logoBytes = logo instanceof File && logo.size ? Buffer.from(await logo.arrayBuffer()) : undefined;
+  const added = await addVolunteerUnit(name, type, parentId, logoBytes).catch(() => false);
   unitResult(added ? "unit-added" : "invalid-unit", type);
 }
 
@@ -73,7 +74,7 @@ async function unitAuthority() {
   const email = await getVolunteer();
   if (!email) redirect("/");
   const [access, units, chairs] = await Promise.all([getTeamAccess(), volunteerUnits(), unitLeads()]);
-  return { email, units, chairs, systemWide: canManageAllUnits(email, access?.role === "admin") };
+  return { email, units, chairs, systemWide: canManageAllUnits(access?.role === "admin") };
 }
 
 async function requireUnitManager(unitId: string) {

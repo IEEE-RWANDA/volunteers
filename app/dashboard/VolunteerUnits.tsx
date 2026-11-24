@@ -37,7 +37,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
     volunteerUnits(), unitMemberships(), unitLeads(), unitBadges(), openUnitRoles(), roleApplications(),
   ]);
   const names = new Map(members.map(member => [member.email, member.name]));
-  const systemWide = canManageAllUnits(viewer, admin);
+  const systemWide = canManageAllUnits(admin);
   const manageable = units.filter(unit => canManageUnit(viewer, unit, systemWide, leads));
   const branches = manageable.filter(unit => unit.type === "branch");
   const canCreate = systemWide || branches.length > 0;
@@ -71,8 +71,8 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                 <span className="mt-1 block font-normal text-ink-soft">Required for student branch chapters.</span>
               </label>
               <label className="block text-sm font-semibold">Organization logo
-                <input name="logo" className="login-input" type="file" accept="image/png,image/jpeg" required />
-                <span className="mt-1 block font-normal text-ink-soft">PNG or JPEG, up to 1 MB.</span>
+                <input name="logo" className="login-input" type="file" accept="image/png,image/jpeg" />
+                <span className="mt-1 block font-normal text-ink-soft">Optional PNG or JPEG, up to 1 MB. Initials are shown without a logo.</span>
               </label>
               <button className="btn btn-primary" type="submit">{systemWide ? "Create unit" : "Create student branch chapter"}</button>
             </form>}

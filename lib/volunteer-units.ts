@@ -33,9 +33,9 @@ export function unitLogoType(bytes: Buffer) {
   return null;
 }
 
-export async function addVolunteerUnit(name: string, type: UnitType, parentId: string, logo: Buffer) {
-  const logoType = unitLogoType(logo);
-  if (!logoType) return false;
+export async function addVolunteerUnit(name: string, type: UnitType, parentId: string, logo?: Buffer) {
+  const logoType = logo ? unitLogoType(logo) : undefined;
+  if (logo && !logoType) return false;
   if (!name || name.length > 120 || !Object.hasOwn(unitTypes, type)) return false;
   if (type === "branchChapter") {
     const parent = (await volunteerUnits()).find(unit => unit.id === parentId);
@@ -46,6 +46,15 @@ export async function addVolunteerUnit(name: string, type: UnitType, parentId: s
   const id = hash(JSON.stringify([type, parentId, name.toLowerCase()]));
   const path = `volunteer-units/${id}.json`;
   if (await readIntakeJson<Unit>(path)) return false;
+  if (!logo || !logoType) {
+    try {
+      await saveIntakeFile(path, JSON.stringify({ id, name, type, parentId: parentId || undefined }));
+      return true;
+    } catch (error) {
+      if (await readIntakeJson<Unit>(path)) return false;
+      throw error;
+    }
+  }
   const logoId = randomUUID();
   const logoPath = `volunteer-unit-logos/${logoId}`;
   await saveIntakeFile(logoPath, logo);
@@ -136,9 +145,8 @@ export async function decideUnitApplication(id: string, decision: RoleDecision["
   return true;
 }
 
-export function canManageAllUnits(email: string, admin: boolean) {
-  return admin && (process.env.VOLUNTEER_UNIT_MANAGERS ?? "").split(",")
-    .some(value => value.trim().toLowerCase() === email);
+export function canManageAllUnits(admin: boolean) {
+  return admin;
 }
 
 export function canManageUnit(email: string, unit: Unit, systemWide: boolean, chairs: Membership[]) {
