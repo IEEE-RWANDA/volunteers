@@ -24,6 +24,8 @@ Use a dedicated Vercel project with a private Blob store connected to Production
 
 - `VOLUNTEER_OFFICERS` to a JSON array of the approved officers, each with `email`, `name`, and `title` (Chair, Vice Chair, Secretary, or Treasurer). Configured officers receive admin access.
 
-Production sign-in accepts verified Gmail and Google Workspace accounts. Use the configured allowlist to bootstrap admins and leads. Other volunteers request access from the sign-in page and an admin reviews the request under **Approve access**. Deploy from a local checkout with `vercel deploy --prod` or use Vercel Git integration on a plan that supports the private organization repository.
+Production sign-in accepts verified Gmail and Google Workspace accounts. Use the configured allowlist to bootstrap admins and leads. Other volunteers request access from the sign-in page and an admin reviews the request under **Approve access**.
+
+The public GitHub repository is connected to Vercel and automatically deploys pushes to `main`.
 
 Admins can manage chapters and student branches system-wide. Designate branch and chapter chairs from the unit assignment form. A student branch chair also manages the chapters of that branch.
