@@ -9,16 +9,8 @@ const organizationGroups = [
   { type: "affinity", title: "Affinity groups", empty: "No affinity groups have been added." },
 ] as const;
 
-const unitSelectGroups = [
-  { type: "branch", label: "Student branches" },
-  { type: "branchChapter", label: "Student branch chapters" },
-  { type: "branchAffinity", label: "Student branch affinity groups" },
-  { type: "chapter", label: "Rwanda Section chapters" },
-  { type: "affinity", label: "Affinity groups" },
-] as const;
-
 const messages: Record<string, string> = {
-  "unit-added": "Organization created. It is now available in step 2 below.",
+  "unit-added": "Organization created. You can assign volunteers from its card below.",
   "unit-assigned": "Volunteer assigned to the unit.",
   "unit-chair-assigned": "Volunteer designated as a unit chair.",
   "invalid-unit-logo": "Attach a PNG or JPEG logo up to 1 MB.",
@@ -49,7 +41,6 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
   const manageable = units.filter(unit => canManageUnit(viewer, unit, systemWide, leads));
   const branches = manageable.filter(unit => unit.type === "branch");
   const canCreate = systemWide || branches.length > 0;
-  const canAppointChair = manageable.some(unit => canDesignateUnitChair(viewer, unit, systemWide, leads));
   const activeGroup = group === undefined ? undefined : organizationGroups.find(item => item.type === group) ?? organizationGroups[0];
   const groups = activeGroup ? [activeGroup] : organizationGroups;
   const message = status && Object.hasOwn(messages, status) ? messages[status] : null;
@@ -61,10 +52,10 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
       {(canCreate || manageable.length > 0) && (
         <details className="mt-4 rounded-lg border border-line bg-paper-2 p-4" open={status === "unit-added"}>
           <summary className="cursor-pointer font-semibold text-navy">Manage organizations</summary>
-          <p className="mt-3 text-sm text-ink-soft">If the organization is not listed, create it in step 1. Then assign the volunteer in step 2.</p>
-          <div className="mt-4 grid gap-5 md:grid-cols-2">
+          <p className="mt-3 text-sm text-ink-soft">Create the organization here. Afterward, assign volunteers from that organization’s card below.</p>
+          <div className="mt-4 max-w-xl">
             {canCreate && <form action={createUnit} aria-label="Create a unit" className="space-y-3">
-              <h3 className="font-semibold text-navy">1. Create an organization</h3>
+              <h3 className="font-semibold text-navy">Create an organization</h3>
               <label className="block text-sm font-semibold">Unit name
                 <input name="name" className="login-input" required maxLength={120} />
               </label>
@@ -87,36 +78,6 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
               </label>
               <button className="btn btn-primary" type="submit">{systemWide ? "Create unit" : "Create student branch organization"}</button>
             </form>}
-            {manageable.length > 0 && members.length > 0 && (
-              <form action={assignUnit} aria-label="Assign a volunteer" className="space-y-3">
-                <h3 className="font-semibold text-navy">2. Assign a volunteer</h3>
-                <label className="block text-sm font-semibold">Volunteer
-                  <select name="email" className="login-input" required defaultValue="">
-                    <option disabled value="">Select a volunteer</option>
-                    {members.map(member => <option key={member.email} value={member.email}>{member.name} · {member.email}</option>)}
-                  </select>
-                </label>
-                <label className="block text-sm font-semibold">Organization
-                  <select name="unitId" className="login-input" required defaultValue="">
-                    <option disabled value="">Select an organization</option>
-                    {unitSelectGroups.map(group => {
-                      const options = manageable.filter(unit => unit.type === group.type);
-                      return options.length ? (
-                        <optgroup key={group.type} label={group.label}>
-                          {options.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
-                        </optgroup>
-                      ) : null;
-                    })}
-                  </select>
-                  <span className="mt-1 block font-normal text-ink-soft">Choose the organization this volunteer belongs to.</span>
-                </label>
-                {canAppointChair && <label className="flex items-start gap-2 text-sm">
-                  <input type="checkbox" name="lead" value="yes" className="mt-1" />
-                  <span>{systemWide ? "Make this volunteer the chair of the selected organization" : "Make this volunteer the chapter chair"}</span>
-                </label>}
-                <button className="btn btn-primary" type="submit">Assign volunteer</button>
-              </form>
-            )}
           </div>
         </details>
       )}
@@ -177,7 +138,8 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
   );
 
   function unitDetails(unitId: string) {
-    const manager = manageable.some(unit => unit.id === unitId);
+    const unit = manageable.find(unit => unit.id === unitId);
+    const manager = Boolean(unit);
     const unitRoles = roles.filter(role => role.unitId === unitId);
     const accepted = applications.flatMap(application => {
       const role = unitRoles.find(role => role.id === application.roleId);
@@ -225,6 +187,27 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
             })}
           </ul>
         ) : <p className="mt-1 text-sm text-ink-soft">No volunteers assigned.</p>}
+        {unit && members.length > 0 && (
+          <details className="mt-3 text-sm">
+            <summary className="cursor-pointer font-semibold text-blue">Assign a volunteer</summary>
+            <form action={assignUnit} className="mt-2 space-y-2">
+              <input type="hidden" name="unitId" value={unitId} />
+              <label className="block font-semibold">Volunteer
+                <select name="email" className="login-input" required defaultValue="">
+                  <option disabled value="">Select a volunteer</option>
+                  {members.map(member => <option key={member.email} value={member.email}>{member.name} · {member.email}</option>)}
+                </select>
+              </label>
+              {canDesignateUnitChair(viewer, unit, systemWide, leads) && (
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" name="lead" value="yes" className="mt-1" />
+                  <span>Make this volunteer the chair of this organization</span>
+                </label>
+              )}
+              <button className="btn btn-primary text-xs" type="submit">Assign volunteer</button>
+            </form>
+          </details>
+        )}
         {manager && unitRoles.length > 0 && (
           <div className="mt-3 border-t border-line pt-3">
             <h3 className="text-sm font-semibold text-navy">Open roles</h3>
