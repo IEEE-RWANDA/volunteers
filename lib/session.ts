@@ -7,8 +7,8 @@ const cookieName = "volunteer_session";
 const lifetime = 8 * 60 * 60;
 const hash = (value: string) => createHash("sha256").update(value).digest();
 
-const officerTitles = ["Chair", "Vice Chair", "Secretary", "Treasurer"] as const;
-type OfficerTitle = typeof officerTitles[number];
+export const officerTitles = ["Chair", "Vice Chair", "Secretary", "Treasurer"] as const;
+export type OfficerTitle = typeof officerTitles[number];
 
 type Account = { officerTitle?: OfficerTitle; email: string; name: string; committee?: string; role?: "admin" | "lead" | "volunteer" };
 type PreviewAccount = Account & { password: string };
@@ -87,7 +87,7 @@ export async function accountRoster() {
 export async function getTeamAccess() {
   const email = await getVolunteer();
   const account = accounts().find(item => item.email === email);
-  if (account?.role === "admin") return { email: account.email, role: account.role } as const;
+  if (account?.role === "admin") return { email: account.email, role: account.role, officerTitle: account.officerTitle } as const;
   if (account?.role === "lead" && account.committee?.trim()) {
     return { email: account.email, role: account.role, committee: account.committee } as const;
   }

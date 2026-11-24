@@ -6,13 +6,17 @@ const icons = {
   plus: <path d="M12 5v14M5 12h14" />,
   person: <><path d="M15 19a6 6 0 0 0-12 0" /><circle cx="9" cy="7" r="4" /><path d="M19 8v8m-4-4h8" /></>,
   role: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m-13 5h18M10 12v2h4v-2" /></>,
+  trash: <><path d="M4 7h16m-10 4v5m4-5v5M9 7l1-3h4l1 3m3 0-1 14H7L6 7" /></>,
+  edit: <><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /><path d="m14 7 3 3" /></>,
 } as const;
 
-export default function ActionModal({ label, title, icon, children }: {
+export default function ActionModal({ label, title, icon, children, tone = "default", compact = false }: {
   label: string;
   title: string;
   icon: keyof typeof icons;
   children: ReactNode;
+  tone?: "default" | "danger";
+  compact?: boolean;
 }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -21,7 +25,7 @@ export default function ActionModal({ label, title, icon, children }: {
     <>
       <button
         type="button"
-        className="inline-grid size-9 shrink-0 place-items-center rounded-md border border-line bg-paper text-blue transition-colors hover:border-blue hover:bg-paper-2"
+        className={`inline-grid shrink-0 place-items-center rounded-md border bg-paper transition-colors hover:bg-paper-2 ${compact ? "size-7" : "size-9"} ${tone === "danger" ? "border-red-200 text-red-700 hover:border-red-500" : "border-line text-blue hover:border-blue"}`}
         aria-label={label}
         title={label}
         aria-haspopup="dialog"

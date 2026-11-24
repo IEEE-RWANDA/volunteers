@@ -10,7 +10,7 @@ export const unitTypes = {
 };
 
 export type UnitType = keyof typeof unitTypes;
-type Unit = { id: string; name: string; type: UnitType; parentId?: string; logoId?: string; logoType?: "image/png" | "image/jpeg" };
+type Unit = { id: string; name: string; type: UnitType; parentId?: string; logoId?: string; logoType?: "image/png" | "image/jpeg"; deletedAt?: string; deletedBy?: string };
 type Membership = { email: string; unitId: string };
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -19,12 +19,20 @@ const isBranchOrganization = (type: UnitType) => type === "branchChapter" || typ
 export async function volunteerUnits() {
   const paths = await listIntakeRecords("volunteer-units");
   const units = (await Promise.all(paths.map(path => readIntakeJson<Unit>(path))))
-    .filter(unit => unit !== null);
+    .filter((unit): unit is Unit => unit !== null && !unit.deletedAt);
   const byId = new Map(units.map(unit => [unit.id, unit]));
   return units.map(unit => ({
     ...unit,
     label: unit.parentId ? `${byId.get(unit.parentId)?.name ?? "Student branch"} / ${unit.name}` : unit.name,
   })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export async function archiveVolunteerUnit(id: string, deletedBy: string) {
+  const path = `volunteer-units/${id}.json`;
+  const unit = await readIntakeJson<Unit>(path);
+  if (!unit || unit.deletedAt) return false;
+  await saveIntakeFile(path, JSON.stringify({ ...unit, deletedAt: new Date().toISOString(), deletedBy }), true);
+  return true;
 }
 
 export function unitLogoType(bytes: Buffer) {
@@ -90,7 +98,7 @@ export async function unitMemberships() {
     .filter(membership => membership !== null);
 }
 
-type UnitBadge = { email: string; unitId: string; label: string };
+type UnitBadge = { id: string; email: string; unitId: string; label: string };
 type UnitRole = { id: string; unitId: string; title: string; description: string };
 type RoleApplication = { id: string; roleId: string; email: string };
 type RoleDecision = { decision: "approved" | "declined" };
@@ -102,8 +110,17 @@ async function records<T>(folder: string) {
 }
 
 export const unitLeads = () => records<Membership>("volunteer-unit-leads");
-export const unitBadges = () => records<UnitBadge>("volunteer-unit-badges");
 export const openUnitRoles = () => records<UnitRole>("volunteer-unit-roles");
+
+export async function unitBadges() {
+  const folder = "volunteer-unit-badges";
+  const paths = await listIntakeRecords(folder);
+  const badges = await Promise.all(paths.map(async path => {
+    const badge = await readIntakeJson<Omit<UnitBadge, "id">>(path);
+    return badge ? { id: path.slice(folder.length + 1, -5), ...badge } : null;
+  }));
+  return badges.filter((badge): badge is UnitBadge => badge !== null);
+}
 
 export async function roleApplications() {
   const applications = await records<RoleApplication>("volunteer-role-applications");
@@ -128,6 +145,15 @@ export async function designateUnitLead(email: string, unitId: string) {
 
 export async function awardUnitBadge(email: string, unitId: string, label: string) {
   await saveOnce(`volunteer-unit-badges/${hash(JSON.stringify([email, unitId, label.toLowerCase()]))}.json`, { email, unitId, label });
+}
+
+export async function editUnitBadge(id: string, label: string) {
+  if (!/^[a-f0-9]{64}$/.test(id)) return false;
+  const path = `volunteer-unit-badges/${id}.json`;
+  const badge = await readIntakeJson<Omit<UnitBadge, "id">>(path);
+  if (!badge) return false;
+  await saveIntakeFile(path, JSON.stringify({ ...badge, label }), true);
+  return true;
 }
 
 export async function postUnitRole(unitId: string, title: string, description: string) {
@@ -161,25 +187,42 @@ export function canCreateUnit(email: string, type: UnitType, parent: Unit | unde
     canManageUnit(email, parent, false, chairs));
 }
 
+export function canDeleteUnit(email: string, unit: Unit, systemWide: boolean, chairs: Membership[], units: Unit[]) {
+  if (systemWide) return true;
+  if (!isBranchOrganization(unit.type) || !unit.parentId) return false;
+  const parent = units.find(candidate => candidate.id === unit.parentId);
+  return parent?.type === "branch" && canManageUnit(email, parent, false, chairs);
+}
+
 export function canDesignateUnitChair(email: string, unit: Unit, systemWide: boolean, chairs: Membership[]) {
   return systemWide || (isBranchOrganization(unit.type) &&
     chairs.some(chair => chair.email === email && chair.unitId === unit.parentId));
 }
 
 
-export async function volunteerExperience(email: string) {
+export async function volunteerExperiences(emails: string[]) {
   const [units, chairs, badges, openings, applications] = await Promise.all([
     volunteerUnits(), unitLeads(), unitBadges(), openUnitRoles(), roleApplications(),
   ]);
-  return units.flatMap(unit => {
-    const chair = chairs.some(entry => entry.email === email && entry.unitId === unit.id);
+  const result = new Map(emails.map(email => [email, [] as { unit: (typeof units)[number]; title: string; description: string }[]]));
+  for (const email of emails) {
+    const experience = result.get(email)!;
     const applied = new Set(applications.filter(item => item.email === email && item.decision === "approved").map(item => item.roleId));
-    const descriptions = new Map(openings.filter(role => role.unitId === unit.id && applied.has(role.id))
-      .map(role => [role.title, role.description]));
-    for (const badge of badges.filter(item => item.email === email && item.unitId === unit.id)) {
-      if (!descriptions.has(badge.label)) descriptions.set(badge.label, "");
+    for (const unit of units) {
+      const descriptions = new Map(openings.filter(role => role.unitId === unit.id && applied.has(role.id))
+        .map(role => [role.title, role.description]));
+      for (const badge of badges.filter(item => item.email === email && item.unitId === unit.id)) {
+        if (!descriptions.has(badge.label)) descriptions.set(badge.label, "");
+      }
+      if (chairs.some(entry => entry.email === email && entry.unitId === unit.id) && !descriptions.has("Unit chair")) {
+        descriptions.set("Unit chair", "");
+      }
+      experience.push(...[...descriptions].map(([title, description]) => ({ unit, title, description })));
     }
-    if (chair && !descriptions.has("Unit chair")) descriptions.set("Unit chair", "");
-    return [...descriptions].map(([title, description]) => ({ unit, title, description }));
-  });
+  }
+  return result;
+}
+
+export async function volunteerExperience(email: string) {
+  return (await volunteerExperiences([email])).get(email) ?? [];
 }

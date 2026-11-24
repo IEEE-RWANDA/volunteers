@@ -16,16 +16,18 @@ function finish(status: string): never {
 
 export async function approveRequest(form: FormData) {
   const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/");
+  if (access?.role !== "admin" || !access.officerTitle) redirect("/");
   const request = await fundingRequest(String(form.get("requestId") ?? ""));
   if (!request || request.approvedAt || request.releasedAt) finish("funding-state");
+  if (request.fundingApprovals?.some(approval => approval.approvedBy === access.email)) finish("funding-state");
   if (request.receiptsAcknowledgedAt && form.get("invoiceMatches") !== "yes") finish("funding-invoice");
   try {
-    await approveFunding(request.id, access.email);
+    if (!await approveFunding(request.id, access.email, access.officerTitle)) finish("funding-state");
   } catch {
     finish("funding-write");
   }
-  finish("funding-approved");
+  const updated = await fundingRequest(request.id);
+  finish(updated?.approvedAt ? "funding-approved" : "funding-approval-recorded");
 }
 
 export async function recordRelease(form: FormData) {

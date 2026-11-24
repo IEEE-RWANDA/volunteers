@@ -7,6 +7,7 @@ export type Organizer = { name: string; committee?: string };
 export type OrganizerOption = Organizer & { id: string };
 
 export type FundAllocation = { id: string; name: string; cents: number };
+export type FundingApprovalSummary = { approvedAt: string; approvedBy: string; officerTitle: "Chair" | "Vice Chair" | "Secretary" | "Treasurer" };
 
 export type Submission = {
   id: string;
@@ -36,6 +37,8 @@ export type Submission = {
   vtoolsAcknowledgedAt?: string;
   amount?: string;
   approvedAt?: string;
+  approvedBy?: string;
+  fundingApprovals?: FundingApprovalSummary[];
   releasedAt?: string;
   releasedAmount?: string;
   demo?: boolean;

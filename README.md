@@ -29,3 +29,5 @@ Production sign-in accepts verified Gmail and Google Workspace accounts. Use the
 The public GitHub repository is connected to Vercel and automatically deploys pushes to `main`.
 
 Admins can manage chapters and student branches system-wide. Designate branch and chapter chairs from the unit assignment form. A student branch chair also manages the chapters of that branch.
+
+Admins can view event submissions and funding requests. Funding is fully approved only after approval by the Chair, Treasurer, and either the Vice Chair or Secretary. Gentille Uwera is the designated calendar reviewer; automatic calendar publishing is not enabled until the public calendar integration is configured.

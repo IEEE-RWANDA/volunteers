@@ -23,3 +23,11 @@ _Avoid_: Logged hours, approved hours
 **Approved volunteer hours**:
 Service time approved or directly recorded by an activity lead and included in totals and certificates.
 _Avoid_: Pending hours
+
+**Event publication decision**:
+Gentille Uwera’s decision to publish or not publish a submitted activity on the IEEE Rwanda public calendar.
+_Avoid_: Event approval
+
+**Fully approved funding request**:
+A funding request approved by the Chair, the Treasurer, and either the Vice Chair or Secretary.
+_Avoid_: Admin-approved request, single approval

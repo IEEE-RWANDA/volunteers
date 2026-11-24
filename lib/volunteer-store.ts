@@ -1,7 +1,8 @@
 import type { FundAllocation, Submission } from "./volunteer-intake";
+import { fundingApprovalComplete, type FundingApproval } from "./funding-approvals";
 import { del, get, list, put } from "@vercel/blob";
 import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 
 const prefix = "volunteer-intake/";
@@ -69,7 +70,7 @@ export async function readIntakeJson<T>(path: string): Promise<T | null> {
   return bytes ? JSON.parse(new TextDecoder().decode(bytes)) as T : null;
 }
 
-type FundingApproval = { approvedAt: string; approvedBy: string };
+type LegacyFundingApproval = { approvedAt: string; approvedBy: string };
 type FundingRelease = { releasedAt: string; releasedAmount: string; recordedAt: string; recordedBy: string };
 type AllocatedRelease = FundingRelease & { requestId: string; allocations: FundAllocation[] };
 
@@ -84,13 +85,24 @@ export const submissionIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9
 
 async function withFundingStatus(record: Submission, ledger?: AllocatedRelease[]): Promise<Submission> {
   if (record.kind !== "funding") return record;
-  const [approval, legacyRelease, releases] = await Promise.all([
-    readIntakeJson<FundingApproval>(`funding-approvals/${record.id}.json`),
+  const [legacyApproval, approvalPaths, legacyRelease, releases] = await Promise.all([
+    readIntakeJson<LegacyFundingApproval>(`funding-approvals/${record.id}.json`),
+    listIntakeRecords(`funding-approvals/${record.id}`),
     readIntakeJson<FundingRelease>(`funding-releases/${record.id}.json`),
     ledger ?? allocatedReleases(),
   ]);
+  const approvals = (await Promise.all(approvalPaths.map(path => readIntakeJson<FundingApproval>(path))))
+    .filter(approval => approval !== null)
+    .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt));
+  const completed = fundingApprovalComplete(approvals);
+  const finalApproval = approvals.at(-1);
   const release = releases.find(entry => entry.requestId === record.id) ?? legacyRelease;
-  return { ...record, ...approval, ...release };
+  return {
+    ...record,
+    fundingApprovals: approvals,
+    ...(legacyApproval ?? (completed && finalApproval ? { approvedAt: finalApproval.approvedAt, approvedBy: finalApproval.approvedBy } : {})),
+    ...release,
+  };
 }
 
 export async function fundingRequest(id: string) {
@@ -99,9 +111,17 @@ export async function fundingRequest(id: string) {
   return record?.kind === "funding" ? withFundingStatus(record) : null;
 }
 
-export async function approveFunding(id: string, email: string) {
-  const approval: FundingApproval = { approvedAt: new Date().toISOString(), approvedBy: email };
-  await saveIntakeFile(`funding-approvals/${id}.json`, JSON.stringify(approval));
+export async function approveFunding(id: string, email: string, officerTitle: FundingApproval["officerTitle"]) {
+  const path = `funding-approvals/${id}/${createHash("sha256").update(email).digest("hex")}.json`;
+  if (await readIntakeJson<FundingApproval>(path)) return false;
+  const approval: FundingApproval = { approvedAt: new Date().toISOString(), approvedBy: email, officerTitle };
+  try {
+    await saveIntakeFile(path, JSON.stringify(approval));
+    return true;
+  } catch (error) {
+    if (await readIntakeJson<FundingApproval>(path)) return false;
+    throw error;
+  }
 }
 
 async function submissions() {

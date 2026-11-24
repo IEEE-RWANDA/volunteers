@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import ActionModal from "./ActionModal";
 import UnitLogo from "./UnitLogo";
-import { canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
-import { addUnitRole, assignUnit, createUnit, giveUnitBadge, reviewUnitApplication } from "./team-actions";
+import { canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
+import { addUnitRole, assignUnit, createUnit, deleteUnit, giveUnitBadge, reviewUnitApplication, updateUnitBadge } from "./team-actions";
 
 const organizationGroups = [
   { type: "chapter", title: "Chapters", empty: "No chapters have been added.", createTitle: "Create a chapter" },
@@ -15,10 +15,15 @@ const messages: Record<string, string> = {
   "unit-added": "Organization created. You can assign volunteers from its card below.",
   "unit-assigned": "Volunteer assigned to the unit.",
   "unit-chair-assigned": "Volunteer designated as a unit chair.",
+  "unit-chair-access": "Only a volunteer with approved sign-in access can be designated as a unit chair.",
+  "unit-deleted": "Organization deleted from active views. Its historical records were preserved.",
+  "unit-delete-confirmation": "Enter the organization name exactly to confirm deletion.",
+  "unit-has-children": "Delete the student branch’s child organizations before deleting the student branch.",
   "invalid-unit-logo": "Attach a PNG or JPEG logo up to 1 MB.",
   "invalid-unit": "Check the organization name, type, and parent. Only student branch chapters and affinity groups use a parent student branch.",
   "invalid-unit-member": "Select an existing volunteer and unit.",
-  "badge-awarded": "Role badge awarded.",
+  "badge-awarded": "Role title added.",
+  "role-title-updated": "Role title updated.",
   "role-posted": "Open role posted.",
   "role-applied": "Application submitted.",
   "application-reviewed": "Application decision saved.",
@@ -144,6 +149,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
   function unitActions(unit: (typeof units)[number]) {
     const manager = manageable.some(item => item.id === unit.id);
     if (!manager) return null;
+    const deletable = canDeleteUnit(viewer, unit, systemWide, leads, units);
     return (
       <div className="flex shrink-0 gap-1.5">
         {unit.type === "branch" && (
@@ -159,6 +165,18 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
         <ActionModal label={`Post a role for ${unit.name}`} title="Post an open role" icon="role">
           {postRoleForm(unit.id)}
         </ActionModal>
+        {deletable && (
+          <ActionModal label={`Delete ${unit.name}`} title="Delete organization" icon="trash" tone="danger">
+            <form action={deleteUnit} className="space-y-3">
+              <input type="hidden" name="unitId" value={unit.id} />
+              <p className="text-sm text-ink-soft">This removes the organization from active views while preserving its historical records.</p>
+              <label className="block text-sm font-semibold">Enter <strong>{unit.name}</strong> to confirm
+                <input name="confirmation" className="login-input" required autoComplete="off" />
+              </label>
+              <button className="btn bg-red-700 text-white hover:bg-red-800" type="submit">Delete organization</button>
+            </form>
+          </ActionModal>
+        )}
       </div>
     );
   }
@@ -176,7 +194,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
         {canDesignateUnitChair(viewer, unit, systemWide, leads) && (
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="lead" value="yes" className="mt-1" />
-            <span>Make this volunteer the chair of this organization</span>
+            <span>Make this volunteer the chair of this organization. The selected email must already have approved sign-in access.</span>
           </label>
         )}
         <button className="btn btn-primary" type="submit">Assign volunteer</button>
@@ -218,29 +236,44 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
         {assigned.length ? (
           <ul className="mt-2 space-y-2 text-sm text-ink-soft">
             {assigned.map(member => {
-              const labels = new Set([
-                ...badges.filter(badge => badge.email === member.email && badge.unitId === unitId).map(badge => badge.label),
-                ...accepted.filter(item => item.email === member.email).map(item => item.label),
-              ]);
+              const customBadges = badges.filter(badge => badge.email === member.email && badge.unitId === unitId);
+              const labels = new Set(accepted.filter(item => item.email === member.email).map(item => item.label));
               if (leads.some(lead => lead.email === member.email && lead.unitId === unitId)) labels.add("Unit chair");
               return (
                 <li key={member.email}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{member.name}</span>
+                    {customBadges.map(badge => (
+                      <span key={badge.id} className="inline-flex items-center gap-1 rounded-full bg-paper-2 py-0.5 ps-2 pe-1 text-xs font-semibold text-navy">
+                        <span><span aria-hidden="true">★ </span>{badge.label}</span>
+                        {manager && (
+                          <ActionModal label={`Edit ${badge.label}`} title="Edit role title" icon="edit" compact>
+                            <form action={updateUnitBadge} className="space-y-3">
+                              <input type="hidden" name="unitId" value={unitId} />
+                              <input type="hidden" name="badgeId" value={badge.id} />
+                              <label className="block text-sm font-semibold">Role title
+                                <input name="label" className="login-input" defaultValue={badge.label} maxLength={60} required autoFocus />
+                              </label>
+                              <button className="btn btn-primary" type="submit">Save role title</button>
+                            </form>
+                          </ActionModal>
+                        )}
+                      </span>
+                    ))}
                     {[...labels].map(label => (
                       <span key={label} className="rounded-full bg-paper-2 px-2 py-0.5 text-xs font-semibold text-navy"><span aria-hidden="true">★ </span>{label}</span>
                     ))}
                   </div>
                   {manager && (
                     <details className="mt-1">
-                      <summary className="cursor-pointer font-medium text-blue">Award role badge</summary>
+                      <summary className="cursor-pointer font-medium text-blue">Add role title</summary>
                       <form action={giveUnitBadge} className="mt-2 flex flex-wrap items-end gap-2">
                         <input type="hidden" name="unitId" value={unitId} />
                         <input type="hidden" name="email" value={member.email} />
-                        <label className="min-w-0 grow text-xs font-semibold">Badge title
+                        <label className="min-w-0 grow text-xs font-semibold">Role title
                           <input name="label" className="login-input" maxLength={60} required />
                         </label>
-                        <button className="btn btn-primary text-xs" type="submit">Award badge</button>
+                        <button className="btn btn-primary text-xs" type="submit">Add role title</button>
                       </form>
                     </details>
                   )}

@@ -4,6 +4,7 @@ import { listedFunds } from "@/lib/listed-funds";
 import { allFundingRequests } from "@/lib/volunteer-store";
 import { kigaliToday } from "@/lib/volunteer-hours";
 import { approveRequest, listFund, recordRelease } from "./funding-actions";
+import type { OfficerTitle } from "@/lib/session";
 
 const messages: Record<string, { text: string; error?: boolean }> = {
   "fund-listed": { text: "Fund assigned to the selected volunteer." },
@@ -12,13 +13,14 @@ const messages: Record<string, { text: string; error?: boolean }> = {
   "funding-receipts": { text: "The volunteer must submit receipts for earlier activities before you release funds for this activity.", error: true },
   "funding-invoice": { text: "Confirm that the invoices match the requested amount and currency before approving.", error: true },
   "funding-approved": { text: "Funding request approved. Record the release once it has taken place." },
+  "funding-approval-recorded": { text: "Your approval was recorded. Funding remains pending until all three required officer approvals are recorded." },
   "funding-released": { text: "Release recorded. The volunteer can now submit their report." },
   "funding-state": { text: "This request is no longer eligible for that action. Check its current status.", error: true },
   "funding-invalid": { text: "Enter a positive amount, a valid currency code, and a release date up to today.", error: true },
   "funding-write": { text: "The change could not be saved. Check the current status before trying again.", error: true },
 };
 
-export default async function AdminFundingRequests({ status }: { status?: string }) {
+export default async function AdminFundingRequests({ status, officerTitle }: { status?: string; officerTitle?: OfficerTitle }) {
   const [requests, funds, volunteers] = await Promise.all([allFundingRequests(), listedFunds(), accountRoster()]);
   const names = new Map(volunteers.map(volunteer => [volunteer.email, volunteer.name]));
   const message = status && Object.hasOwn(messages, status) ? messages[status] : null;
@@ -60,8 +62,11 @@ export default async function AdminFundingRequests({ status }: { status?: string
       </section>
       {requests.length ? (
         <ul className="mt-4 divide-y divide-line">
-          {requests.map(request => (
-            <li key={request.id} className="py-4">
+          {requests.map(request => {
+            const approvals = request.fundingApprovals ?? [];
+            const approvedRoles = new Set(approvals.map(approval => approval.officerTitle));
+            const viewerApproved = approvals.some(approval => approval.officerTitle === officerTitle);
+            return <li key={request.id} className="py-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="wrap-anywhere font-semibold text-navy">{request.title}</h3>
@@ -87,6 +92,19 @@ export default async function AdminFundingRequests({ status }: { status?: string
                 </p>
               ) : null}
               <p className="mt-2 text-sm text-ink-soft">Requested {request.amount}{request.demo && " · Demo data"}</p>
+              {(!request.approvedAt || approvals.length > 0) && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-navy">Officer approvals · {approvals.length} recorded · 3 required</p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {(["Chair", "Treasurer", "Vice Chair or Secretary"] as const).map(role => {
+                      const complete = role === "Vice Chair or Secretary"
+                        ? approvedRoles.has("Vice Chair") || approvedRoles.has("Secretary")
+                        : approvedRoles.has(role);
+                      return <span key={role} className="rounded-full bg-paper-2 px-2.5 py-1 font-semibold text-navy">{complete ? "✓ " : "○ "}{role}</span>;
+                    })}
+                  </div>
+                </div>
+              )}
               <p className="mt-2 whitespace-pre-wrap wrap-anywhere text-sm text-ink-soft">{request.details}</p>
               {request.vtools && (
                 <p className="mt-2 text-sm">
@@ -130,7 +148,7 @@ export default async function AdminFundingRequests({ status }: { status?: string
                   </div>
                   <button className="btn btn-primary" type="submit">Record release</button>
                 </form>
-              ) : (
+              ) : officerTitle && !viewerApproved ? (
                 <form className="mt-3 space-y-2" action={approveRequest}>
                   <input type="hidden" name="requestId" value={request.id} />
                   {request.receiptsAcknowledgedAt && (
@@ -139,11 +157,11 @@ export default async function AdminFundingRequests({ status }: { status?: string
                       <span>I verified that the invoices add up to the requested amount in the requested currency.</span>
                     </label>
                   )}
-                  <button className="btn btn-primary" type="submit">Approve request</button>
+                  <button className="btn btn-primary" type="submit">Approve as {officerTitle}</button>
                 </form>
-              )}
+              ) : !request.approvedAt ? <p className="mt-3 text-sm text-ink-soft">{viewerApproved ? `Approved by you as ${officerTitle}.` : "Officer approval required."}</p> : null}
             </li>
-          ))}
+          })}
         </ul>
       ) : <p className="mt-4 text-sm text-ink-soft">No funding requests yet.</p>}
     </section>
