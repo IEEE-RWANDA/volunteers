@@ -99,7 +99,9 @@ export default async function AdminFundingRequests({ status }: { status?: string
                     <a className="action-link wrap-anywhere" key={index} href={`/api/funding-requests/${request.id}/${index}`}>
                       {request.vtools && index === 0 && "Budget expense sheet · "}
                       {request.vtools && index >= 1 && index <= (request.invoiceCount ?? 1) && "Invoice · "}
-                      {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 1 && "Funding approval email · "}
+                      {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 1 && "MTTS approval email · "}
+                      {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 2 && "One-page event description · "}
+                      {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 3 && "Event poster · "}
                       {file}
                     </a>
                   ))}

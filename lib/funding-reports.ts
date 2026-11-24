@@ -8,6 +8,7 @@ export type FundingReport = {
   receivedAt: string;
   photos: string;
   vtools: string;
+  socialPost?: string;
   attachments: { name: string; path: string; type: "receipt" | "expense sheet" | "activity report" }[];
 };
 

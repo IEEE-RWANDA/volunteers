@@ -99,6 +99,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                     <a className="action-link" href={report.photos} target="_blank" rel="noreferrer">Event photos</a>
                     <a className="action-link" href={report.vtools} target="_blank" rel="noreferrer">vTools event</a>
+                    {report.socialPost && <a className="action-link" href={report.socialPost} target="_blank" rel="noreferrer">Social media post</a>}
                     {report.attachments.map((file, index) => (
                       <a className="action-link wrap-anywhere" key={file.path} href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}>
                         {file.type} · {file.name}

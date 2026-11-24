@@ -58,6 +58,9 @@ export default function FundingReportForm({ requests, selected, revision }: { re
         <label className="block min-w-0 text-sm font-semibold">vTools event link
           <input className="login-input" type="url" name="vtools" maxLength={1000} required />
         </label>
+        <label className="block min-w-0 text-sm font-semibold">Social media post link
+          <input className="login-input" type="url" name="socialPost" maxLength={1000} required />
+        </label>
       </div>
       <label className="block text-sm font-semibold">One-page activity report (PDF)
         <input className="login-input" type="file" name="summary" accept=".pdf" required />

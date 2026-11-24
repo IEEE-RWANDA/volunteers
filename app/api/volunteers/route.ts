@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { attachmentCount, attachmentLimit, type Organizer, type Submission } from "@/lib/volunteer-intake";
+import { attachmentCount, attachmentLimit, fundingRequestAttachmentCount, type Organizer, type Submission } from "@/lib/volunteer-intake";
 import { fundingReport, ownFundingRequest, reportPath, type FundingReport } from "@/lib/funding-reports";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import { allocationTotal, fundsForVolunteer } from "@/lib/listed-funds";
@@ -49,7 +49,8 @@ async function submitFundingReport(form: FormData, email: string) {
 
   const photos = String(form.get("photos") ?? "").trim();
   const vtools = String(form.get("vtools") ?? "").trim();
-  if (!webLink(photos) || !webLink(vtools)) return bad("Enter valid photo and vTools links.");
+  const socialPost = String(form.get("socialPost") ?? "").trim();
+  if (!webLink(photos) || !webLink(vtools) || !webLink(socialPost)) return bad("Enter valid photo, vTools, and social media post links.");
 
   const receipts = filesFrom(form, "receipts");
   const expense = filesFrom(form, "expense");
@@ -67,7 +68,7 @@ async function submitFundingReport(form: FormData, email: string) {
   }
   const report: FundingReport = {
     requestId, title: request.title, committee: request.committee, submittedBy: email,
-    receivedAt: new Date().toISOString(), photos, vtools, attachments: [],
+    receivedAt: new Date().toISOString(), photos, vtools, socialPost, attachments: [],
   };
   const batch = randomUUID();
   const files = [];
@@ -187,22 +188,25 @@ export async function POST(request: Request) {
   const budget = filesFrom(form, "budget");
   const invoice = filesFrom(form, "invoice");
   const approvalEmail = filesFrom(form, "approvalEmail");
+  const eventDescription = filesFrom(form, "eventDescription");
+  const eventPoster = filesFrom(form, "eventPoster");
   const extraFiles = filesFrom(form, "attachments");
-  const files = [...budget, ...invoice, ...approvalEmail];
+  const files = [...budget, ...invoice, ...approvalEmail, ...eventDescription, ...eventPoster];
   if (kind === "event" && files.length + extraFiles.length) return bad("Event submissions do not accept attachments.");
-  if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || extraFiles.length)) {
-    return bad("Attach a funding approval email, a budget expense sheet, and at least one invoice.");
+  if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || eventDescription.length !== 1 || eventPoster.length !== 1 || extraFiles.length)) {
+    return bad("Attach the MTTS approval email, budget, invoices, one-page event description, and event poster.");
   }
-  if (files.length > attachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
+  if (files.length > fundingRequestAttachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
     return bad("Attach up to three invoices. All uploads must total 4 MB or less.", 413);
   }
   const uploads = [];
   for (const [index, file] of files.entries()) {
     const name = cleanName(file);
     const bytes = Buffer.from(await file.arrayBuffer());
-    const extensions = index === 0 ? /\.xlsx$/i : /\.(pdf|png|jpe?g)$/i;
+    const descriptionIndex = invoice.length + 2;
+    const extensions = index === 0 ? /\.xlsx$/i : index === descriptionIndex ? /\.pdf$/i : /\.(pdf|png|jpe?g)$/i;
     if (!extensions.test(name) || !supportedFile(name, bytes)) {
-      return bad("Use an Excel (.xlsx) budget and a PDFs or images for the invoices and approval email.");
+      return bad("Use XLSX for the budget, PDF for the one-page description, and PDF or images for the other documents.");
     }
     uploads.push({ name, bytes });
   }

@@ -5,7 +5,7 @@ import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import type { FundBalance } from "@/lib/listed-funds";
 import RequestPicker from "./RequestPicker";
 import { useRouter } from "next/navigation";
-import { attachmentCount, attachmentLimit, type OrganizerOption } from "@/lib/volunteer-intake";
+import { attachmentLimit, fundingRequestAttachmentCount, type OrganizerOption } from "@/lib/volunteer-intake";
 
 const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper px-3 py-2.5 font-normal text-ink focus:border-blue focus:outline-2 focus:outline-blue/30";
 
@@ -49,8 +49,8 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         data.set(`fundAmount-${id}`, amount);
       }
     }
-    const files = ["budget", "invoice", "approvalEmail"].flatMap(key => data.getAll(key)).filter((item): item is File => item instanceof File && item.size > 0);
-    if (files.length > attachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
+    const files = ["budget", "invoice", "approvalEmail", "eventDescription", "eventPoster"].flatMap(key => data.getAll(key)).filter((item): item is File => item instanceof File && item.size > 0);
+    if (files.length > fundingRequestAttachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
       setResult({ error: "Attach up to three invoices. All uploads must total 4 MB or less." });
       return;
     }
@@ -199,9 +199,17 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             <fieldset className="space-y-3">
               <legend className="sr-only">Required funding documents</legend>
               <label className="block font-semibold">
-                Funding approval email
+                Funding approval email from MTTS
                 <input name="approvalEmail" type="file" className={field} accept=".pdf,.png,.jpg,.jpeg" required />
                 <span className="mt-1 block font-normal text-ink-soft">Upload the email as a PDF or screenshot.</span>
+              </label>
+              <label className="block font-semibold">
+                One-page event description
+                <input name="eventDescription" type="file" className={field} accept=".pdf" required />
+              </label>
+              <label className="block font-semibold">
+                Event poster
+                <input name="eventPoster" type="file" className={field} accept=".pdf,.png,.jpg,.jpeg" required />
               </label>
               <div>
                 <label className="block font-semibold">
