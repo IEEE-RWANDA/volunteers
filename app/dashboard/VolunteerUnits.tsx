@@ -9,12 +9,20 @@ const organizationGroups = [
   { type: "affinity", title: "Affinity groups", empty: "No affinity groups have been added." },
 ] as const;
 
+const unitSelectGroups = [
+  { type: "branch", label: "Student branches" },
+  { type: "branchChapter", label: "Student branch chapters" },
+  { type: "branchAffinity", label: "Student branch affinity groups" },
+  { type: "chapter", label: "Rwanda Section chapters" },
+  { type: "affinity", label: "Affinity groups" },
+] as const;
+
 const messages: Record<string, string> = {
-  "unit-added": "Unit created.",
+  "unit-added": "Organization created. It is now available in step 2 below.",
   "unit-assigned": "Volunteer assigned to the unit.",
   "unit-chair-assigned": "Volunteer designated as a unit chair.",
   "invalid-unit-logo": "Attach a PNG or JPEG logo up to 1 MB.",
-  "invalid-unit": "Check the unit name and parent branch. Each unit name must be unique within its type and parent.",
+  "invalid-unit": "Check the organization name, type, and parent. Only student branch chapters and affinity groups use a parent student branch.",
   "invalid-unit-member": "Select an existing volunteer and unit.",
   "badge-awarded": "Role badge awarded.",
   "role-posted": "Open role posted.",
@@ -51,48 +59,60 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
       <h2 id="volunteer-units-title" className="panel-title">Organizations</h2>
       {message && <p role="status" className="mt-3 text-sm font-semibold text-navy">{message}</p>}
       {(canCreate || manageable.length > 0) && (
-        <details className="mt-4 rounded-lg border border-line bg-paper-2 p-4">
+        <details className="mt-4 rounded-lg border border-line bg-paper-2 p-4" open={status === "unit-added"}>
           <summary className="cursor-pointer font-semibold text-navy">Manage organizations</summary>
+          <p className="mt-3 text-sm text-ink-soft">If the organization is not listed, create it in step 1. Then assign the volunteer in step 2.</p>
           <div className="mt-4 grid gap-5 md:grid-cols-2">
             {canCreate && <form action={createUnit} aria-label="Create a unit" className="space-y-3">
+              <h3 className="font-semibold text-navy">1. Create an organization</h3>
               <label className="block text-sm font-semibold">Unit name
                 <input name="name" className="login-input" required maxLength={120} />
               </label>
-              {systemWide ? <label className="block text-sm font-semibold">Unit type
+              <label className="block text-sm font-semibold">Unit type
                 <select name="type" className="login-input">
-                  {Object.entries(unitTypes).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+                  {(systemWide ? Object.entries(unitTypes) : Object.entries(unitTypes).filter(([type]) => type === "branchChapter" || type === "branchAffinity"))
+                    .map(([type, label]) => <option key={type} value={type}>{label}</option>)}
                 </select>
-              </label> : <input type="hidden" name="type" value="branchChapter" />}
+              </label>
               <label className="block text-sm font-semibold">Parent student branch
                 <select name="parentId" className="login-input" required={!systemWide}>
                   {systemWide && <option value="">None</option>}
                   {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </select>
-                <span className="mt-1 block font-normal text-ink-soft">Required for student branch chapters.</span>
+                <span className="mt-1 block font-normal text-ink-soft">Use a parent only for student branch chapters and student branch affinity groups. All other types belong directly to the Rwanda Subsection.</span>
               </label>
               <label className="block text-sm font-semibold">Organization logo
                 <input name="logo" className="login-input" type="file" accept="image/png,image/jpeg" />
                 <span className="mt-1 block font-normal text-ink-soft">Optional PNG or JPEG, up to 1 MB. Initials are shown without a logo.</span>
               </label>
-              <button className="btn btn-primary" type="submit">{systemWide ? "Create unit" : "Create student branch chapter"}</button>
+              <button className="btn btn-primary" type="submit">{systemWide ? "Create unit" : "Create student branch organization"}</button>
             </form>}
             {manageable.length > 0 && members.length > 0 && (
               <form action={assignUnit} aria-label="Assign a volunteer" className="space-y-3">
+                <h3 className="font-semibold text-navy">2. Assign a volunteer</h3>
                 <label className="block text-sm font-semibold">Volunteer
                   <select name="email" className="login-input" required defaultValue="">
                     <option disabled value="">Select a volunteer</option>
                     {members.map(member => <option key={member.email} value={member.email}>{member.name} · {member.email}</option>)}
                   </select>
                 </label>
-                <label className="block text-sm font-semibold">Unit
+                <label className="block text-sm font-semibold">Organization
                   <select name="unitId" className="login-input" required defaultValue="">
-                    <option disabled value="">Select a unit</option>
-                    {manageable.map(unit => <option key={unit.id} value={unit.id}>{unit.label} · {unitTypes[unit.type]}</option>)}
+                    <option disabled value="">Select an organization</option>
+                    {unitSelectGroups.map(group => {
+                      const options = manageable.filter(unit => unit.type === group.type);
+                      return options.length ? (
+                        <optgroup key={group.type} label={group.label}>
+                          {options.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
+                        </optgroup>
+                      ) : null;
+                    })}
                   </select>
+                  <span className="mt-1 block font-normal text-ink-soft">Choose the organization this volunteer belongs to.</span>
                 </label>
                 {canAppointChair && <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" name="lead" value="yes" className="mt-1" />
-                  <span>{systemWide ? "Designate as an authorized unit chair" : "Designate as chapter chair (student branch chapters only)"}</span>
+                  <span>{systemWide ? "Make this volunteer the chair of the selected organization" : "Make this volunteer the chapter chair"}</span>
                 </label>}
                 <button className="btn btn-primary" type="submit">Assign volunteer</button>
               </form>
@@ -117,7 +137,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
               {groupUnits.length ? (
                 <ul className="mt-3 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {groupUnits.map(unit => {
-                    const chapters = units.filter(chapter => chapter.type === "branchChapter" && chapter.parentId === unit.id);
+                    const chapters = units.filter(chapter => (chapter.type === "branchChapter" || chapter.type === "branchAffinity") && chapter.parentId === unit.id);
                     return (
                       <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
                         <div className="mb-2 flex items-center gap-3">
@@ -127,13 +147,16 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                         {unitDetails(unit.id)}
                         {chapters.length > 0 && (
                           <div className="mt-4 border-t border-line pt-3">
-                            <h5 className="text-sm font-semibold text-navy">Student branch chapters</h5>
+                            <h5 className="text-sm font-semibold text-navy">Student branch organizations</h5>
                             <ul className="mt-2 space-y-3 border-s border-line ps-3">
                               {chapters.map(chapter => (
                                 <li key={chapter.id}>
                                   <div className="mb-2 flex items-center gap-3">
                                     <UnitLogo unit={chapter} />
-                                    <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
+                                    <div>
+                                      <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
+                                      <span className="text-xs text-ink-soft">{unitTypes[chapter.type]}</span>
+                                    </div>
                                   </div>
                                   {unitDetails(chapter.id)}
                                 </li>

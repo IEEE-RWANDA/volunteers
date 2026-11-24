@@ -66,7 +66,7 @@ export async function assignUnit(form: FormData) {
 
 function unitResult(status: string, type?: UnitType): never {
   revalidatePath("/");
-  const group = type === "branch" || type === "branchChapter" ? "branch" : type === "affinity" ? "affinity" : "chapter";
+  const group = type === "branch" || type === "branchChapter" || type === "branchAffinity" ? "branch" : type === "affinity" ? "affinity" : "chapter";
   redirect(`/?section=volunteers&tab=organizations&group=${group}&unitStatus=${status}#volunteer-units`);
 }
 

@@ -6,6 +6,7 @@ export const unitTypes = {
   branch: "Student branch",
   branchChapter: "Student branch chapter",
   affinity: "Affinity group",
+  branchAffinity: "Student branch affinity group",
 };
 
 export type UnitType = keyof typeof unitTypes;
@@ -13,6 +14,7 @@ type Unit = { id: string; name: string; type: UnitType; parentId?: string; logoI
 type Membership = { email: string; unitId: string };
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+const isBranchOrganization = (type: UnitType) => type === "branchChapter" || type === "branchAffinity";
 
 export async function volunteerUnits() {
   const paths = await listIntakeRecords("volunteer-units");
@@ -37,7 +39,7 @@ export async function addVolunteerUnit(name: string, type: UnitType, parentId: s
   const logoType = logo ? unitLogoType(logo) : undefined;
   if (logo && !logoType) return false;
   if (!name || name.length > 120 || !Object.hasOwn(unitTypes, type)) return false;
-  if (type === "branchChapter") {
+  if (isBranchOrganization(type)) {
     const parent = (await volunteerUnits()).find(unit => unit.id === parentId);
     if (parent?.type !== "branch") return false;
   } else if (parentId) {
@@ -151,16 +153,16 @@ export function canManageAllUnits(admin: boolean) {
 
 export function canManageUnit(email: string, unit: Unit, systemWide: boolean, chairs: Membership[]) {
   return systemWide || chairs.some(chair => chair.email === email &&
-    (chair.unitId === unit.id || (unit.type === "branchChapter" && chair.unitId === unit.parentId)));
+    (chair.unitId === unit.id || (isBranchOrganization(unit.type) && chair.unitId === unit.parentId)));
 }
 
 export function canCreateUnit(email: string, type: UnitType, parent: Unit | undefined, systemWide: boolean, chairs: Membership[]) {
-  return systemWide || (type === "branchChapter" && parent?.type === "branch" &&
+  return systemWide || (isBranchOrganization(type) && parent?.type === "branch" &&
     canManageUnit(email, parent, false, chairs));
 }
 
 export function canDesignateUnitChair(email: string, unit: Unit, systemWide: boolean, chairs: Membership[]) {
-  return systemWide || (unit.type === "branchChapter" &&
+  return systemWide || (isBranchOrganization(unit.type) &&
     chairs.some(chair => chair.email === email && chair.unitId === unit.parentId));
 }
 
