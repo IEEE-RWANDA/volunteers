@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import ActionModal from "./ActionModal";
 import UnitLogo from "./UnitLogo";
 import { canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
-import { addUnitRole, assignUnit, createUnit, deleteUnit, giveUnitBadge, reviewUnitApplication, updateUnitBadge } from "./team-actions";
+import { addUnitRole, assignUnit, createUnit, deleteUnit, editUnit, giveUnitBadge, reviewUnitApplication, updateUnitBadge } from "./team-actions";
 
 const organizationGroups = [
   { type: "chapter", title: "Chapters", empty: "No chapters have been added.", createTitle: "Create a chapter" },
@@ -16,6 +16,7 @@ const messages: Record<string, string> = {
   "unit-assigned": "Volunteer assigned to the unit.",
   "unit-chair-assigned": "Volunteer designated as a unit chair.",
   "unit-chair-access": "Only a volunteer with approved sign-in access can be designated as a unit chair.",
+  "unit-updated": "Organization updated.",
   "unit-deleted": "Organization deleted from active views. Its historical records were preserved.",
   "unit-delete-confirmation": "Enter the organization name exactly to confirm deletion.",
   "unit-has-children": "Delete the student branch’s child organizations before deleting the student branch.",
@@ -152,6 +153,19 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
     const deletable = canDeleteUnit(viewer, unit, systemWide, leads, units);
     return (
       <div className="flex shrink-0 gap-1.5">
+        <ActionModal label={`Edit ${unit.name}`} title="Edit organization" icon="edit">
+          <form action={editUnit} className="space-y-3">
+            <input type="hidden" name="unitId" value={unit.id} />
+            <label className="block text-sm font-semibold">Organization name
+              <input name="name" className="login-input" defaultValue={unit.name} required maxLength={120} autoFocus />
+            </label>
+            <label className="block text-sm font-semibold">Replace organization logo
+              <input name="logo" className="login-input" type="file" accept="image/png,image/jpeg" />
+              <span className="mt-1 block font-normal text-ink-soft">Optional PNG or JPEG, up to 1 MB. Leave blank to keep the current logo.</span>
+            </label>
+            <button className="btn btn-primary" type="submit">Save changes</button>
+          </form>
+        </ActionModal>
         {unit.type === "branch" && (
           <ActionModal label={`Create an organization under ${unit.name}`} title={`Add to ${unit.name}`} icon="plus">
             {createUnitForm("branchChapter", unit.id)}

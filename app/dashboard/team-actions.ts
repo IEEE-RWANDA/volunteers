@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { accountRoster, getTeamAccess, getVolunteer } from "@/lib/session";
 import { addToRoster, roster } from "@/lib/volunteer-roster";
-import { addVolunteerUnit, applyForUnitRole, archiveVolunteerUnit, assignVolunteerUnit, awardUnitBadge, canCreateUnit, canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, decideUnitApplication, designateUnitLead, editUnitBadge, openUnitRoles, postUnitRole, roleApplications, unitBadges, unitLeads, unitMemberships, volunteerUnits, type UnitType } from "@/lib/volunteer-units";
+import { addVolunteerUnit, applyForUnitRole, archiveVolunteerUnit, assignVolunteerUnit, awardUnitBadge, canCreateUnit, canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, decideUnitApplication, designateUnitLead, editUnitBadge, openUnitRoles, postUnitRole, roleApplications, unitBadges, unitLeads, unitMemberships, updateVolunteerUnit, volunteerUnits, type UnitType } from "@/lib/volunteer-units";
 
 function finish(status: string): never {
   revalidatePath("/");
@@ -63,6 +63,17 @@ export async function assignUnit(form: FormData) {
     unitResult("unit-unavailable");
   }
   unitResult(chair ? "unit-chair-assigned" : "unit-assigned", authority.unit.type);
+}
+
+export async function editUnit(form: FormData) {
+  const unitId = String(form.get("unitId") ?? "");
+  const name = String(form.get("name") ?? "").trim();
+  const { unit } = await requireUnitManager(unitId);
+  const logo = form.get("logo");
+  if (logo !== null && (!(logo instanceof File) || logo.size > 1024 * 1024)) unitResult("invalid-unit-logo", unit.type);
+  const logoBytes = logo instanceof File && logo.size ? Buffer.from(await logo.arrayBuffer()) : undefined;
+  const updated = await updateVolunteerUnit(unitId, name, logoBytes).catch(() => false);
+  unitResult(updated ? "unit-updated" : "invalid-unit", unit.type);
 }
 
 export async function deleteUnit(form: FormData) {

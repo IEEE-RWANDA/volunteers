@@ -80,6 +80,36 @@ export async function addVolunteerUnit(name: string, type: UnitType, parentId: s
   return true;
 }
 
+export async function updateVolunteerUnit(id: string, name: string, logo?: Buffer) {
+  if (!/^[a-f0-9]{64}$/.test(id) || !name || name.length > 120) return false;
+  const path = `volunteer-units/${id}.json`;
+  const unit = await readIntakeJson<Unit>(path);
+  if (!unit || unit.deletedAt || (await volunteerUnits()).some(candidate => candidate.id !== id &&
+      candidate.type === unit.type && candidate.parentId === unit.parentId && candidate.name.toLowerCase() === name.toLowerCase())) return false;
+  const logoType = logo ? unitLogoType(logo) : undefined;
+  if (logo && !logoType) return false;
+  if (!logo || !logoType) {
+    await saveIntakeFile(path, JSON.stringify({ ...unit, name }), true);
+    return true;
+  }
+  const logoId = randomUUID();
+  await saveIntakeFile(`volunteer-unit-logos/${logoId}`, logo);
+  try {
+    await saveIntakeFile(path, JSON.stringify({ ...unit, name, logoId, logoType }), true);
+  } catch (error) {
+    await removeIntakeFiles([`volunteer-unit-logos/${logoId}`]).catch(() => {});
+    throw error;
+  }
+  const saved = await readIntakeJson<Unit>(path);
+  if (saved?.logoId !== logoId || saved.name !== name) {
+    await saveIntakeFile(path, JSON.stringify(unit), true).catch(() => {});
+    await removeIntakeFiles([`volunteer-unit-logos/${logoId}`]).catch(() => {});
+    return false;
+  }
+  if (unit.logoId) await removeIntakeFiles([`volunteer-unit-logos/${unit.logoId}`]).catch(() => {});
+  return true;
+}
+
 export async function assignVolunteerUnit(email: string, unitId: string) {
   if (!(await volunteerUnits()).some(unit => unit.id === unitId)) return false;
   const path = `volunteer-memberships/${hash(JSON.stringify([email, unitId]))}.json`;

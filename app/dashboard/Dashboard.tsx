@@ -69,7 +69,7 @@ export default async function Dashboard({ email, params }: { email: string; para
           </Link>
           <nav aria-label="Dashboard" className="dashboard-nav">
             {navigation.map((item, index) => (
-              <Link key={item.id} href={item.href} aria-current={current.id === item.id ? "page" : undefined}>
+              <Link key={item.id} href={item.href} prefetch={false} aria-current={current.id === item.id ? "page" : undefined}>
                 <span className={`nav-glyph nav-glyph-${index}`} aria-hidden="true" />
                 {item.label}
               </Link>
