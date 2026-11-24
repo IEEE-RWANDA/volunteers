@@ -1,0 +1,32 @@
+{
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#fe267a",
+        "activityBar.activeBorder": "#e7e7e7",
+        "activityBar.background": "#fe267a",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBarBadge.background": "#57de01",
+        "activityBarBadge.foreground": "#15202b",
+        "activityBarTop.activeBackground": "#fe267a",
+        "activityBarTop.activeBorder": "#e7e7e7",
+        "activityBarTop.background": "#fe267a",
+        "activityBarTop.foreground": "#e7e7e7",
+        "activityBarTop.inactiveForeground": "#e7e7e799",
+        "commandCenter.border": "#e7e7e799",
+        "commandCenter.foreground": "#e7e7e7",
+        "sash.hoverBorder": "#fe267a",
+        "statusBar.background": "#f0015e",
+        "statusBar.debuggingBackground": "#f0015e",
+        "statusBar.debuggingForeground": "#e7e7e7",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBar.inactiveBackground": "#f0015e",
+        "statusBarItem.hoverBackground": "#fe267a",
+        "statusBarItem.remoteBackground": "#57de01",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "titleBar.activeBackground": "#f0015e",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#f0015e99",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.color": "#f0015e"
+}
