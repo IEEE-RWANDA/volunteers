@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       </section>
       <section className="space-y-2">
         <h2 className="text-xl font-semibold text-navy">Volunteer records and documents</h2>
-        <p>The Hub stores information you submit, including event details, volunteer hours, funding requests and reports. Funding documents are stored privately and accessed through the Hub by authorized reviewers. The Hub uses Vercel for hosting and private storage.</p>
+        <p>The Hub stores information you submit, including event details, volunteer hours, funding requests and reports. Funding documents are stored privately and accessed through the Hub by authorized reviewers. The Hub uses Vercel for hosting and Supabase for private database and file storage.</p>
       </section>
       <section className="space-y-2">
         <h2 className="text-xl font-semibold text-navy">Questions and requests</h2>

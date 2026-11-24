@@ -1,17 +1,52 @@
 import type { FundAllocation, Submission } from "./volunteer-intake";
 import { fundingApprovalComplete, type FundingApproval } from "./funding-approvals";
-import { del, get, list, put } from "@vercel/blob";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
+import postgres, { type Sql } from "postgres";
 
-const prefix = "volunteer-intake/";
 const directory = resolve(process.cwd(), ".volunteer-data");
 const local = process.env.NODE_ENV === "development";
+const bucket = "volunteer-files";
+let databaseClient: Sql | undefined;
+let storageClient: SupabaseClient | undefined;
+
+function database() {
+  const url = process.env.POSTGRES_URL;
+  if (!url) throw new Error("POSTGRES_URL is not configured");
+  return databaseClient ??= postgres(url, { max: 1, prepare: false, idle_timeout: 20, connect_timeout: 10 });
+}
+
+function storage() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("Supabase storage is not configured");
+  return storageClient ??= createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+function isRecord(path: string) {
+  return path.endsWith(".json");
+}
 
 export async function saveIntakeFile(path: string, data: Buffer | string, overwrite = false) {
   if (!local) {
-    await put(prefix + path, data, { access: "private", allowOverwrite: overwrite, contentType: "application/octet-stream" });
+    if (isRecord(path)) {
+      const value = JSON.parse(typeof data === "string" ? data : data.toString("utf8"));
+      const sql = database();
+      const rows = overwrite
+        ? await sql`insert into volunteer_records (path, data) values (${path}, ${sql.json(value)})
+            on conflict (path) do update set data = excluded.data, updated_at = now() returning path`
+        : await sql`insert into volunteer_records (path, data) values (${path}, ${sql.json(value)})
+            on conflict (path) do nothing returning path`;
+      if (!rows.length) throw Object.assign(new Error("Record already exists"), { code: "EEXIST" });
+      return;
+    }
+    const { error } = await storage().storage.from(bucket).upload(path, data, {
+      upsert: overwrite,
+      contentType: "application/octet-stream",
+    });
+    if (error) throw error;
     return;
   }
   const destination = resolve(directory, path);
@@ -28,9 +63,14 @@ export async function saveIntakeFile(path: string, data: Buffer | string, overwr
 
 export async function readIntakeFile(path: string): Promise<Uint8Array | null> {
   if (!local) {
-    const blob = await get(prefix + path, { access: "private", useCache: false });
-    if (blob?.statusCode !== 200) return null;
-    return new Uint8Array(await new Response(blob.stream).arrayBuffer());
+    if (isRecord(path)) {
+      const rows = await database()`select data from volunteer_records where path = ${path}`;
+      return rows.length ? new TextEncoder().encode(JSON.stringify(rows[0].data)) : null;
+    }
+    const { data, error } = await storage().storage.from(bucket).download(path);
+    if (error?.message.toLowerCase().includes("not found")) return null;
+    if (error) throw error;
+    return data ? new Uint8Array(await data.arrayBuffer()) : null;
   }
   return readFile(resolve(directory, path)).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null;
@@ -41,7 +81,13 @@ export async function readIntakeFile(path: string): Promise<Uint8Array | null> {
 export async function removeIntakeFiles(paths: string[]) {
   if (!paths.length) return;
   if (!local) {
-    await del(paths.map(path => prefix + path));
+    const records = paths.filter(isRecord);
+    const files = paths.filter(path => !isRecord(path));
+    if (records.length) await database()`delete from volunteer_records where path in ${database()(records)}`;
+    if (files.length) {
+      const { error } = await storage().storage.from(bucket).remove(files);
+      if (error) throw error;
+    }
     return;
   }
   await Promise.all(paths.map(path => unlink(resolve(directory, path))));
@@ -54,15 +100,8 @@ export async function listIntakeRecords(folder: string) {
       throw error;
     })).filter(name => name.endsWith(".json")).map(name => folder + "/" + name);
   }
-
-  const paths: string[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await list({ prefix: prefix + folder + "/", cursor });
-    paths.push(...page.blobs.map(blob => blob.pathname.slice(prefix.length)));
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor);
-  return paths;
+  const rows = await database()`select path from volunteer_records where path like ${folder + "/%"} order by path`;
+  return rows.map(row => String(row.path));
 }
 
 export async function readIntakeJson<T>(path: string): Promise<T | null> {
