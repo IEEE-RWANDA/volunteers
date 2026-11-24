@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { listIntakeRecords, readIntakeFile, saveIntakeFile } from "./volunteer-store";
+import { listIntakeRecords, readIntakeFile, readIntakeJson, saveIntakeFile } from "./volunteer-store";
 
 type Entry = { eventId?: string; id: string; date: string; activity: string; minutes: number; recordedAt: string };
 type TeamEntry = Entry & { recipients: string[]; loggedBy: string };
 type HoursDetails = Pick<Entry, "date" | "activity" | "minutes">;
+export type HourSubmission = Entry & { eventId: string; email: string };
+type HourApproval = { approvedAt: string; approvedBy: string };
 
 const folder = (email: string) => "hours/" + createHash("sha256").update(email).digest("hex");
 
@@ -27,6 +29,41 @@ export async function saveTeamHours(loggedBy: string, recipients: string[], deta
   await saveIntakeFile(`team-hours/${entry.id}.json`, JSON.stringify(entry));
 }
 
+export async function submitVolunteerHours(email: string, details: HoursDetails & { eventId: string }) {
+  const id = createHash("sha256").update(JSON.stringify([details.eventId, email])).digest("hex");
+  const path = `hour-submissions/${id}.json`;
+  if (await readIntakeJson<HourSubmission>(path)) return false;
+  const entry: HourSubmission = { ...details, id, email, recordedAt: new Date().toISOString() };
+  try {
+    await saveIntakeFile(path, JSON.stringify(entry));
+    return true;
+  } catch (error) {
+    if (await readIntakeJson<HourSubmission>(path)) return false;
+    throw error;
+  }
+}
+
+export async function hourSubmissions() {
+  const submissions = await readHours<HourSubmission>("hour-submissions");
+  return Promise.all(submissions.map(async submission => ({
+    ...submission,
+    approval: await readIntakeJson<HourApproval>(`hour-approvals/${submission.id}.json`),
+  })));
+}
+
+export async function approveHourSubmissions(ids: string[], approvedBy: string) {
+  const approval: HourApproval = { approvedAt: new Date().toISOString(), approvedBy };
+  await Promise.all(ids.map(async id => {
+    const path = `hour-approvals/${id}.json`;
+    if (await readIntakeJson<HourApproval>(path)) return;
+    try {
+      await saveIntakeFile(path, JSON.stringify(approval));
+    } catch (error) {
+      if (!await readIntakeJson<HourApproval>(path)) throw error;
+    }
+  }));
+}
+
 async function readHours<T extends Entry>(path: string): Promise<T[]> {
   const files = await listIntakeRecords(path);
   const entries = await Promise.all(files.map(async (file) => {
@@ -37,11 +74,13 @@ async function readHours<T extends Entry>(path: string): Promise<T[]> {
 }
 
 export async function volunteerHours(email: string, teamEntries?: TeamEntry[]) {
-  const [personal, team] = await Promise.all([
+  const [personal, team, submissions] = await Promise.all([
     readHours<Entry>(folder(email)),
     teamEntries ?? readHours<TeamEntry>("team-hours"),
+    hourSubmissions(),
   ]);
-  return [...personal, ...team.filter(entry => entry.recipients.includes(email))]
+  return [...personal, ...team.filter(entry => entry.recipients.includes(email)),
+    ...submissions.filter(entry => entry.email === email && entry.approval)]
     .sort((a, b) => b.date.localeCompare(a.date) || b.recordedAt.localeCompare(a.recordedAt));
 }
 
