@@ -77,30 +77,32 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                 )}
               </div>
               {groupUnits.length ? (
-                <ul className="mt-3 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ul className={`mt-3 grid items-start gap-4 md:grid-cols-2 ${group.type === "branch" ? "" : "xl:grid-cols-3"}`}>
                   {groupUnits.map(unit => {
                     const chapters = units.filter(chapter => (chapter.type === "branchChapter" || chapter.type === "branchAffinity") && chapter.parentId === unit.id);
                     return (
                       <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
-                        <div className="mb-2 flex items-center gap-3">
+                        <div className="mb-2 flex items-start gap-3">
                           <UnitLogo unit={unit} />
-                          <h4 className="min-w-0 grow wrap-anywhere font-semibold text-navy">{unit.name}</h4>
-                          {unitActions(unit)}
+                          <div className="min-w-0 grow">
+                            <h4 className="wrap-anywhere font-semibold text-navy">{unit.name}</h4>
+                            <div className="mt-2">{unitActions(unit)}</div>
+                          </div>
                         </div>
                         {unitDetails(unit.id)}
                         {chapters.length > 0 && (
                           <div className="mt-4 border-t border-line pt-3">
                             <h5 className="text-sm font-semibold text-navy">Student branch organizations</h5>
-                            <ul className="mt-2 space-y-3 border-s border-line ps-3">
+                            <ul className="mt-3 space-y-3">
                               {chapters.map(chapter => (
-                                <li key={chapter.id}>
-                                  <div className="mb-2 flex items-center gap-3">
+                                <li key={chapter.id} className="rounded-md border border-line p-3">
+                                  <div className="mb-2 flex items-start gap-3">
                                     <UnitLogo unit={chapter} />
                                     <div className="min-w-0 grow">
                                       <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
-                                      <span className="text-xs text-ink-soft">{unitTypes[chapter.type]}</span>
+                                      <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[chapter.type]}</span>
+                                      <div className="mt-2">{unitActions(chapter)}</div>
                                     </div>
-                                    {unitActions(chapter)}
                                   </div>
                                   {unitDetails(chapter.id)}
                                 </li>
@@ -152,7 +154,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
     if (!manager) return null;
     const deletable = canDeleteUnit(viewer, unit, systemWide, leads, units);
     return (
-      <div className="flex shrink-0 gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         <ActionModal label={`Edit ${unit.name}`} title="Edit organization" icon="edit">
           <form action={editUnit} className="space-y-3">
             <input type="hidden" name="unitId" value={unit.id} />
