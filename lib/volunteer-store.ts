@@ -4,19 +4,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
-import postgres, { type Sql } from "postgres";
 
 const directory = resolve(process.cwd(), ".volunteer-data");
 const local = process.env.NODE_ENV === "development";
 const bucket = "volunteer-files";
-let databaseClient: Sql | undefined;
 let storageClient: SupabaseClient | undefined;
-
-function database() {
-  const url = process.env.POSTGRES_URL;
-  if (!url) throw new Error("POSTGRES_URL is not configured");
-  return databaseClient ??= postgres(url, { max: 1, prepare: false, idle_timeout: 20, connect_timeout: 10 });
-}
 
 function storage() {
   const url = process.env.SUPABASE_URL;
@@ -33,13 +25,12 @@ export async function saveIntakeFile(path: string, data: Buffer | string, overwr
   if (!local) {
     if (isRecord(path)) {
       const value = JSON.parse(typeof data === "string" ? data : data.toString("utf8"));
-      const sql = database();
-      const rows = overwrite
-        ? await sql`insert into volunteer_records (path, data) values (${path}, ${sql.json(value)})
-            on conflict (path) do update set data = excluded.data, updated_at = now() returning path`
-        : await sql`insert into volunteer_records (path, data) values (${path}, ${sql.json(value)})
-            on conflict (path) do nothing returning path`;
-      if (!rows.length) throw Object.assign(new Error("Record already exists"), { code: "EEXIST" });
+      const query = overwrite
+        ? storage().from("volunteer_records").upsert({ path, data: value, updated_at: new Date().toISOString() }, { onConflict: "path" })
+        : storage().from("volunteer_records").insert({ path, data: value });
+      const { error } = await query;
+      if (error?.code === "23505") throw Object.assign(new Error("Record already exists"), { code: "EEXIST" });
+      if (error) throw error;
       return;
     }
     const { error } = await storage().storage.from(bucket).upload(path, data, {
@@ -64,8 +55,9 @@ export async function saveIntakeFile(path: string, data: Buffer | string, overwr
 export async function readIntakeFile(path: string): Promise<Uint8Array | null> {
   if (!local) {
     if (isRecord(path)) {
-      const rows = await database()`select data from volunteer_records where path = ${path}`;
-      return rows.length ? new TextEncoder().encode(JSON.stringify(rows[0].data)) : null;
+      const { data, error } = await storage().from("volunteer_records").select("data").eq("path", path).maybeSingle();
+      if (error) throw error;
+      return data ? new TextEncoder().encode(JSON.stringify(data.data)) : null;
     }
     const { data, error } = await storage().storage.from(bucket).download(path);
     if (error?.message.toLowerCase().includes("not found")) return null;
@@ -83,7 +75,10 @@ export async function removeIntakeFiles(paths: string[]) {
   if (!local) {
     const records = paths.filter(isRecord);
     const files = paths.filter(path => !isRecord(path));
-    if (records.length) await database()`delete from volunteer_records where path in ${database()(records)}`;
+    if (records.length) {
+      const { error } = await storage().from("volunteer_records").delete().in("path", records);
+      if (error) throw error;
+    }
     if (files.length) {
       const { error } = await storage().storage.from(bucket).remove(files);
       if (error) throw error;
@@ -100,8 +95,11 @@ export async function listIntakeRecords(folder: string) {
       throw error;
     })).filter(name => name.endsWith(".json")).map(name => folder + "/" + name);
   }
-  const rows = await database()`select path from volunteer_records where path like ${folder + "/%"} order by path`;
-  return rows.map(row => String(row.path));
+  const prefix = folder + "/";
+  const { data, error } = await storage().from("volunteer_records").select("path")
+    .gte("path", prefix).lt("path", folder + "0").order("path");
+  if (error) throw error;
+  return data.map(row => row.path);
 }
 
 export async function readIntakeJson<T>(path: string): Promise<T | null> {

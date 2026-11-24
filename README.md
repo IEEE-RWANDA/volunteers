@@ -16,7 +16,7 @@ The preview does not publish events to Google Calendar.
 
 ## Production
 
-Connect a Supabase Marketplace resource to the Vercel project for Production and Preview. The integration provides `POSTGRES_URL`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. Run `npm run storage:setup` once with those variables to create the private records table and file bucket.
+Connect a Supabase Marketplace resource to the Vercel project for Production and Preview. The app uses `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; initial setup and migration also use `POSTGRES_URL`. Run `npm run storage:setup` once with those variables to create the private records table and file bucket.
 
 Set these Production environment variables:
 

@@ -30,15 +30,12 @@ export function reportPath(id: string, version: number) {
 
 export async function fundingReport(id: string, version?: number) {
   if (!submissionIdPattern.test(id)) return null;
-  if (version === undefined) {
-    const paths = await listIntakeRecords("funding-report-revisions/" + id);
-    version = paths.reduce((latest, path) =>
-      Math.max(latest, Number(path.split("/").at(-1)?.slice(0, -5)) || 1), 1);
-  }
-  const report = await readIntakeJson<FundingReport>(reportPath(id, version));
+  const resolvedVersion = version ?? (await listIntakeRecords("funding-report-revisions/" + id))
+    .reduce((latest, path) => Math.max(latest, Number(path.split("/").at(-1)?.slice(0, -5)) || 1), 1);
+  const report = await readIntakeJson<FundingReport>(reportPath(id, resolvedVersion));
   if (!report) return null;
-  const review = await readIntakeJson<ReportReview>(`funding-report-reviews/${id}/${version}.json`);
-  return { ...report, version, review };
+  const review = await readIntakeJson<ReportReview>(`funding-report-reviews/${id}/${resolvedVersion}.json`);
+  return { ...report, version: resolvedVersion, review };
 }
 
 export async function saveReportReview(id: string, version: number, review: ReportReview) {
