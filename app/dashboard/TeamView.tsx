@@ -51,44 +51,68 @@ export default async function TeamView({ access, status }: { access: Access; sta
               <h2 id="admin-reports" className="panel-title">Funding reports</h2>
               {reviewMessage && <p role="status" className="mt-2 text-sm font-semibold text-blue">{reviewMessage}</p>}
               {reports.length ? (
-                <ul className="mt-3 divide-y divide-line">
-                  {reports.map(report => (
-                    <li className="space-y-2 py-3" key={report.requestId}>
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <p className="font-semibold text-navy">{report.title}</p>
-                        <p className="text-sm font-semibold text-ink-soft">{reportStatus(report.review).label} · Version {report.version}</p>
-                      </div>
-                      <p className="text-sm text-ink-soft">{report.committee} · {report.submittedBy}</p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <a className="action-link" href={report.photos} target="_blank" rel="noreferrer">Event photos</a>
-                        <a className="action-link" href={report.vtools} target="_blank" rel="noreferrer">vTools event</a>
-                        {report.socialPost && <a className="action-link" href={report.socialPost} target="_blank" rel="noreferrer">Social media post</a>}
-                        {report.attachments.map((file, index) => (
-                          <a className="action-link wrap-anywhere" key={file.path} href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}>
-                            {file.type} · {file.name}
-                          </a>
-                        ))}
-                      </div>
-                      {report.review?.comments && (
-                        <p className="whitespace-pre-wrap wrap-anywhere rounded-md bg-paper-2 p-3 text-sm text-navy">{report.review.comments}</p>
-                      )}
-                      {!report.review && (
-                        <form action={reviewReport} className="space-y-3 pt-2" aria-label={`Review report for ${report.title}`}>
-                          <input type="hidden" name="requestId" value={report.requestId} />
-                          <input type="hidden" name="version" value={report.version} />
-                          <label className="block text-sm font-semibold">Review comments
-                            <textarea className="login-input" name="comments" rows={2} maxLength={2000} />
-                          </label>
-                          <p className="text-xs text-ink-soft">Comments are required when sending a report back.</p>
-                          <div className="flex flex-wrap gap-2">
-                            <button className="btn btn-primary" type="submit" name="decision" value="approved">Approve report</button>
-                            <button className="btn border border-line text-blue hover:bg-paper-2" type="submit" name="decision" value="returned">Send back</button>
-                          </div>
-                        </form>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <div className="mt-4 overflow-x-auto" role="region" aria-label="Funding reports table" tabIndex={0}>
+                  <table className="w-full min-w-[44rem] text-left text-sm">
+                    <thead className="border-b border-line bg-paper-2 text-navy">
+                      <tr>
+                        <th scope="col" className="px-3 py-2">Activity</th>
+                        <th scope="col" className="px-3 py-2">Submitted by</th>
+                        <th scope="col" className="px-3 py-2">Status</th>
+                        <th scope="col" className="px-3 py-2">Version</th>
+                        <th scope="col" className="px-3 py-2">Review</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {reports.map(report => (
+                        <tr key={report.requestId} className="align-top">
+                          <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
+                            {report.title}
+                            <p className="mt-1 font-normal text-ink-soft">{report.committee}</p>
+                          </th>
+                          <td className="wrap-anywhere px-3 py-3 text-ink-soft">{report.submittedBy}</td>
+                          <td className="px-3 py-3">
+                            <span className="inline-block rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">{reportStatus(report.review).label}</span>
+                          </td>
+                          <td className="px-3 py-3 text-ink-soft">{report.version}</td>
+                          <td className="px-3 py-3">
+                            <details className="min-w-32">
+                              <summary className="cursor-pointer font-semibold text-blue">View report</summary>
+                              <div className="mt-3 space-y-3">
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                                  <a className="action-link" href={report.photos} target="_blank" rel="noreferrer">Event photos</a>
+                                  <a className="action-link" href={report.vtools} target="_blank" rel="noreferrer">vTools event</a>
+                                  {report.socialPost && <a className="action-link" href={report.socialPost} target="_blank" rel="noreferrer">Social media post</a>}
+                                  {report.attachments.map((file, index) => (
+                                    <a className="action-link wrap-anywhere" key={file.path} href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}>
+                                      {file.type} · {file.name}
+                                    </a>
+                                  ))}
+                                </div>
+                                {report.review?.comments && (
+                                  <p className="whitespace-pre-wrap wrap-anywhere rounded-md bg-paper-2 p-3 text-sm text-navy">{report.review.comments}</p>
+                                )}
+                                {!report.review && (
+                                  <form action={reviewReport} className="space-y-3 pt-2" aria-label={`Review report for ${report.title}`}>
+                                    <input type="hidden" name="requestId" value={report.requestId} />
+                                    <input type="hidden" name="version" value={report.version} />
+                                    <label className="block text-sm font-semibold">Review comments
+                                      <textarea className="login-input" name="comments" rows={2} maxLength={2000} />
+                                    </label>
+                                    <p className="text-xs text-ink-soft">Comments are required when sending a report back.</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      <button className="btn btn-primary" type="submit" name="decision" value="approved">Approve report</button>
+                                      <button className="btn border border-line text-blue hover:bg-paper-2" type="submit" name="decision" value="returned">Send back</button>
+                                    </div>
+                                  </form>
+                                )}
+                              </div>
+                            </details>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : <p className="mt-3 text-sm text-ink-soft">Submitted funding reports will appear here.</p>}
             </section>
           ),
