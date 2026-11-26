@@ -19,23 +19,47 @@ export default async function AdminEvents({ viewer }: { viewer: string }) {
         )}
       </div>
       {events.length ? (
-        <ul className="mt-4 divide-y divide-line">
-          {events.map(event => (
-            <li className="py-4" key={event.id}>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="wrap-anywhere font-semibold text-navy">{event.title}</h3>
-                <span className="rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">Awaiting calendar decision</span>
-              </div>
-              <p className="mt-1 text-sm text-ink-soft">{event.date.replace("T", " ")} – {event.end?.replace("T", " ")} · {event.location}</p>
-              <p className="mt-1 wrap-anywhere text-sm text-ink-soft">{unitNames.get(event.eventUnitId ?? "") ?? event.committee} · {event.submittedBy}</p>
-              {event.organizers?.length ? <p className="mt-1 wrap-anywhere text-sm text-ink-soft">Volunteers · {event.organizers.map(person => person.name).join(", ")}</p> : null}
-              {event.vtools && <a className="action-link mt-2 inline-block" href={event.vtools} target="_blank" rel="noreferrer">vTools event</a>}
-              {viewer === calendarReviewer && (
-                <p className="mt-3 text-sm font-semibold text-ink-soft">Calendar publishing will be enabled after the calendar connection is configured.</p>
-              )}
-            </li>
-          ))}
-        </ul>
+        <>
+          {viewer === calendarReviewer && (
+            <p className="mt-3 text-sm font-semibold text-ink-soft">Calendar publishing will be enabled after the calendar connection is configured.</p>
+          )}
+          <div className="mt-4 overflow-x-auto" role="region" aria-labelledby="admin-events" tabIndex={0}>
+            <table className="w-full min-w-[48rem] text-left text-sm">
+              <thead className="border-b border-line bg-paper-2 text-navy">
+                <tr>
+                  <th scope="col" className="px-3 py-2">Activity</th>
+                  <th scope="col" className="px-3 py-2">Calendar status</th>
+                  <th scope="col" className="px-3 py-2">Schedule and venue</th>
+                  <th scope="col" className="px-3 py-2">Organizers</th>
+                  <th scope="col" className="px-3 py-2">vTools</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {events.map(event => (
+                  <tr className="align-top" key={event.id}>
+                    <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">{event.title}</th>
+                    <td className="px-3 py-3">
+                      <span className="inline-block rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">Awaiting calendar decision</span>
+                    </td>
+                    <td className="px-3 py-3 text-ink-soft">
+                      <time className="whitespace-nowrap" dateTime={event.date}>{event.date.replace("T", " ")}</time>
+                      {event.end && <> – <time className="whitespace-nowrap" dateTime={event.end}>{event.end.replace("T", " ")}</time></>}
+                      {event.location && <p className="mt-1">{event.location}</p>}
+                    </td>
+                    <td className="wrap-anywhere px-3 py-3 text-ink-soft">
+                      <p>{unitNames.get(event.eventUnitId ?? "") ?? event.committee}</p>
+                      <p className="mt-1">{event.submittedBy}</p>
+                      {event.organizers?.length ? <p className="mt-1">Volunteers · {event.organizers.map(person => person.name).join(", ")}</p> : null}
+                    </td>
+                    <td className="px-3 py-3">
+                      {event.vtools && <a className="action-link whitespace-nowrap" href={event.vtools} target="_blank" rel="noreferrer">vTools event</a>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : <p className="mt-4 text-sm text-ink-soft">No event submissions yet.</p>}
     </section>
   );
