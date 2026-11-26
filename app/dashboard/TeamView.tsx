@@ -1,4 +1,4 @@
-import Link from "next/link";
+import AdminWorkflowTabs from "./AdminWorkflowTabs";
 import type { getTeamAccess } from "@/lib/session";
 import { listFundingReports, reportStatus } from "@/lib/funding-reports";
 import { teamRoster } from "@/lib/volunteer-roster";
@@ -20,18 +20,11 @@ const messages: Record<string, { text: string; error?: boolean }> = {
   unavailable: { text: "The change could not be saved. Try again.", error: true },
 };
 
-const adminTabs = [
-  { id: "events", label: "Event submissions", anchor: "admin-events" },
-  { id: "funding", label: "Funding requests", anchor: "admin-funding-panel" },
-  { id: "reporting", label: "Reporting", anchor: "admin-reports" },
-] as const;
-
-export default async function TeamView({ access, status, tab }: { access: Access; status?: string; tab?: string }) {
-  const adminTab = access.role === "admin" ? adminTabs.find(item => item.id === tab)?.id ?? "events" : undefined;
+export default async function TeamView({ access, status }: { access: Access; status?: string }) {
   const members = await teamRoster(access);
   const emails = members.map(member => member.email);
   const [totals, experiences] = await Promise.all([teamHourTotals(emails), volunteerExperiences(emails)]);
-  const reports = adminTab === "reporting" ? await listFundingReports() : [];
+  const reports = access.role === "admin" ? await listFundingReports() : [];
   const reviewMessages: Record<string, string> = {
     "report-approved": "Report approved.",
     "report-returned": "Report sent back. The volunteer can see your comments and resubmit.",
@@ -49,62 +42,57 @@ export default async function TeamView({ access, status, tab }: { access: Access
         </p>
       )}
       {access.role === "admin" && <AdminAccessRequests status={status} />}
-      {adminTab && (
-        <nav aria-label="Admin workflows" className="dashboard-nav">
-          {adminTabs.map(item => (
-            <Link key={item.id} href={`/?section=team&tab=${item.id}#${item.anchor}`} aria-current={adminTab === item.id ? "page" : undefined}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      )}
-      {adminTab === "events" && <AdminEvents viewer={access.email} />}
-      {adminTab === "funding" && <AdminFundingRequests status={status} officerTitle={access.officerTitle} />}
-      {adminTab === "reporting" && (
-        <section className="panel" aria-labelledby="admin-reports">
-          <h2 id="admin-reports" className="panel-title">Funding reports</h2>
-          {reviewMessage && <p role="status" className="mt-2 text-sm font-semibold text-blue">{reviewMessage}</p>}
-          {reports.length ? (
-            <ul className="mt-3 divide-y divide-line">
-              {reports.map(report => (
-                <li className="space-y-2 py-3" key={report.requestId}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-semibold text-navy">{report.title}</p>
-                    <p className="text-sm font-semibold text-ink-soft">{reportStatus(report.review).label} · Version {report.version}</p>
-                  </div>
-                  <p className="text-sm text-ink-soft">{report.committee} · {report.submittedBy}</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    <a className="action-link" href={report.photos} target="_blank" rel="noreferrer">Event photos</a>
-                    <a className="action-link" href={report.vtools} target="_blank" rel="noreferrer">vTools event</a>
-                    {report.socialPost && <a className="action-link" href={report.socialPost} target="_blank" rel="noreferrer">Social media post</a>}
-                    {report.attachments.map((file, index) => (
-                      <a className="action-link wrap-anywhere" key={file.path} href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}>
-                        {file.type} · {file.name}
-                      </a>
-                    ))}
-                  </div>
-                  {report.review?.comments && (
-                    <p className="whitespace-pre-wrap wrap-anywhere rounded-md bg-paper-2 p-3 text-sm text-navy">{report.review.comments}</p>
-                  )}
-                  {!report.review && (
-                    <form action={reviewReport} className="space-y-3 pt-2" aria-label={`Review report for ${report.title}`}>
-                      <input type="hidden" name="requestId" value={report.requestId} />
-                      <input type="hidden" name="version" value={report.version} />
-                      <label className="block text-sm font-semibold">Review comments
-                        <textarea className="login-input" name="comments" rows={2} maxLength={2000} />
-                      </label>
-                      <p className="text-xs text-ink-soft">Comments are required when sending a report back.</p>
-                      <div className="flex flex-wrap gap-2">
-                        <button className="btn btn-primary" type="submit" name="decision" value="approved">Approve report</button>
-                        <button className="btn border border-line text-blue hover:bg-paper-2" type="submit" name="decision" value="returned">Send back</button>
+      {access.role === "admin" && (
+        <AdminWorkflowTabs panels={{
+          events: <AdminEvents viewer={access.email} />,
+          funding: <AdminFundingRequests status={status} officerTitle={access.officerTitle} />,
+          reporting: (
+            <section className="panel" aria-labelledby="admin-reports">
+              <h2 id="admin-reports" className="panel-title">Funding reports</h2>
+              {reviewMessage && <p role="status" className="mt-2 text-sm font-semibold text-blue">{reviewMessage}</p>}
+              {reports.length ? (
+                <ul className="mt-3 divide-y divide-line">
+                  {reports.map(report => (
+                    <li className="space-y-2 py-3" key={report.requestId}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="font-semibold text-navy">{report.title}</p>
+                        <p className="text-sm font-semibold text-ink-soft">{reportStatus(report.review).label} · Version {report.version}</p>
                       </div>
-                    </form>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : <p className="mt-3 text-sm text-ink-soft">Submitted funding reports will appear here.</p>}
-        </section>
+                      <p className="text-sm text-ink-soft">{report.committee} · {report.submittedBy}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                        <a className="action-link" href={report.photos} target="_blank" rel="noreferrer">Event photos</a>
+                        <a className="action-link" href={report.vtools} target="_blank" rel="noreferrer">vTools event</a>
+                        {report.socialPost && <a className="action-link" href={report.socialPost} target="_blank" rel="noreferrer">Social media post</a>}
+                        {report.attachments.map((file, index) => (
+                          <a className="action-link wrap-anywhere" key={file.path} href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}>
+                            {file.type} · {file.name}
+                          </a>
+                        ))}
+                      </div>
+                      {report.review?.comments && (
+                        <p className="whitespace-pre-wrap wrap-anywhere rounded-md bg-paper-2 p-3 text-sm text-navy">{report.review.comments}</p>
+                      )}
+                      {!report.review && (
+                        <form action={reviewReport} className="space-y-3 pt-2" aria-label={`Review report for ${report.title}`}>
+                          <input type="hidden" name="requestId" value={report.requestId} />
+                          <input type="hidden" name="version" value={report.version} />
+                          <label className="block text-sm font-semibold">Review comments
+                            <textarea className="login-input" name="comments" rows={2} maxLength={2000} />
+                          </label>
+                          <p className="text-xs text-ink-soft">Comments are required when sending a report back.</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button className="btn btn-primary" type="submit" name="decision" value="approved">Approve report</button>
+                            <button className="btn border border-line text-blue hover:bg-paper-2" type="submit" name="decision" value="returned">Send back</button>
+                          </div>
+                        </form>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="mt-3 text-sm text-ink-soft">Submitted funding reports will appear here.</p>}
+            </section>
+          ),
+        }} />
       )}
       {access.role === "admin" && <VolunteerUnits members={members} viewer={access.email} admin />}
       <div className={access.role === "admin" ? "grid items-start gap-5 lg:grid-cols-[1.4fr_1fr]" : "max-w-3xl"}>
