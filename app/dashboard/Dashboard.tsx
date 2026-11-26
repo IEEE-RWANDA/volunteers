@@ -21,6 +21,7 @@ import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
 import { fundingReportStatuses } from "@/lib/funding-reports";
+import TreasuryHistory, { treasuryHistoryOwner } from "./TreasuryHistory";
 import "./workspace.css";
 
 const baseNavigation = [
@@ -45,8 +46,9 @@ export default async function Dashboard({ email, params }: { email: string; para
   const current = navigation.find(item => item.id === section) ?? navigation[0];
   const volunteerTab = tab === "roles" || tab === "directory" || tab === "organizations" ? tab
     : unitStatus && !tab ? "organizations" : "profile";
-  const reporting = current.id === "funding" && (tab === "reporting" || Boolean(request) || report === "saved");
-  const funding = current.id === "funding" && !reporting;
+  const treasury = current.id === "funding" && tab === "treasury-history" && email === treasuryHistoryOwner;
+  const reporting = current.id === "funding" && !treasury && (tab === "reporting" || Boolean(request) || report === "saved");
+  const funding = current.id === "funding" && !reporting && !treasury;
   const funds = funding ? await fundsForVolunteer(email) : [];
   const initialFund = funds.find(item => item.id === fund && item.remainingCents > 0)?.id;
   const eventUnits = current.id === "events" ? await volunteerUnits() : [];
@@ -155,6 +157,7 @@ export default async function Dashboard({ email, params }: { email: string; para
             {current.id === "funding" && (
               <nav aria-label="Funding and reporting" className="dashboard-nav mb-5">
                 <Link href="/?section=funding" aria-current={funding ? "page" : undefined}>Funding</Link>
+                {email === treasuryHistoryOwner && <Link href="/?section=funding&tab=treasury-history" aria-current={treasury ? "page" : undefined}>Treasury history</Link>}
                 <Link href="/?section=funding&tab=reporting" aria-current={reporting ? "page" : undefined}>Reporting</Link>
               </nav>
             )}
@@ -171,7 +174,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                 </ul> : <p className="mt-3 text-sm text-ink-soft">You have no available funding sources listed yet.</p>}
               </section>
             )}
-            {reporting ? (
+            {treasury ? <TreasuryHistory email={email} /> : reporting ? (
               <>
                 <ReleasedFunds records={records} statuses={reportStatuses} />
                 <FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} />
