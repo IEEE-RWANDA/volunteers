@@ -198,7 +198,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                   ) : <VolunteerHours email={email} status={hours} profileStatus={profile} avatar={avatar} googleName={googleName} />}
               </>
             ) :
-              current.id === "team" && access ? <TeamView access={access} status={team} /> : funding ? (
+              current.id === "team" && access ? <TeamView access={access} status={team} tab={tab} /> : funding ? (
                 <section className="panel">
                   <h2 id="funding-request" className="panel-title">Submit a funding request</h2>
                   {fundingActivities.some(item => item.submittedBy === email && item.vtools) ? (

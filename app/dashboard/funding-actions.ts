@@ -11,7 +11,7 @@ import { kigaliToday } from "@/lib/volunteer-hours";
 
 function finish(status: string): never {
   revalidatePath("/");
-  redirect("/?section=team&team=" + status + "#admin-funding");
+  redirect("/?section=team&tab=funding&team=" + status + "#admin-funding");
 }
 
 export async function approveRequest(form: FormData) {

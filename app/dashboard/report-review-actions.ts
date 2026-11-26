@@ -7,7 +7,7 @@ import { fundingReport, saveReportReview } from "@/lib/funding-reports";
 
 function finish(status: string): never {
   revalidatePath("/");
-  redirect("/?section=team&team=" + status + "#admin-reports");
+  redirect("/?section=team&tab=reporting&team=" + status + "#admin-reports");
 }
 
 export async function reviewReport(form: FormData) {
