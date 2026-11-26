@@ -228,7 +228,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
               <legend className="sr-only">Receipt acknowledgements</legend>
               <label className="flex items-start gap-3">
                 <input type="checkbox" name="acknowledgeReceipts" value="yes" required className="mt-0.5 size-4 shrink-0 accent-blue" />
-                <span>I will submit receipts within 30 days of the activity. I understand that funds for a different activity can only be released once I submit receipts for previous activities.</span>
+                <span>I will submit receipts within 30 days of the activity. I understand that funds from the same funder for a different activity can only be released after my previous reports for that funder are approved.</span>
               </label>
               <label className="flex items-start gap-3">
                 <input type="checkbox" name="acknowledgeReceiptFormat" value="yes" required className="mt-0.5 size-4 shrink-0 accent-blue" />

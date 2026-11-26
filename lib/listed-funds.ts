@@ -39,17 +39,27 @@ function activityLink(value?: string) {
   return url.host + url.pathname.replace(/\/+$/, "") + url.search + url.hash;
 }
 
-export async function releaseFunding(request: Submission, email: string, date: string, amount: string, today: string) {
+function fundingSources(request: Submission) {
+  return [
+    request.fundingSource,
+    ...(request.fundAllocations ?? []).map(fund => fund.name),
+    ...(request.listedFunds ?? []).map(fund => fund.name),
+  ].map(name => name?.trim().replace(/\s+/g, " ").toLowerCase()).filter(name => !!name);
+}
+
+export async function releaseFunding(request: Submission, email: string, date: string, amount: string) {
   const allocations = request.fundAllocations ?? [];
   const ledger = await allocatedReleases();
   if (ledger.some(entry => entry.requestId === request.id)) return "funding-state";
   const activity = activityLink(request.vtools);
+  const sources = new Set(fundingSources(request));
   const previous = (await volunteerSubmissions(request.submittedBy, ledger)).filter(item =>
-    item.id !== request.id && item.releasedAt && item.date < today &&
+    item.id !== request.id && item.releasedAt &&
+    fundingSources(item).some(source => sources.has(source)) &&
     (!(request.fundingEventId && item.fundingEventId === request.fundingEventId)) &&
     (!activity || activityLink(item.vtools) !== activity));
   const reports = await Promise.all(previous.map(item => fundingReport(item.id)));
-  if (reports.some(report => !report?.attachments.some(file => file.type === "receipt"))) return "funding-receipts";
+  if (reports.some(report => report?.review?.decision !== "approved" || !report.attachments.some(file => file.type === "receipt"))) return "funding-receipts";
   if (allocations.length) {
     const funds = await listedFunds(ledger);
     if (allocations.some(item => item.cents > (funds.find(fund => fund.id === item.id)?.remainingCents ?? 0))) {

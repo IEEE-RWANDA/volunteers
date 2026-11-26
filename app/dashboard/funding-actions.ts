@@ -47,7 +47,7 @@ export async function recordRelease(form: FormData) {
   if (!allocations.length && (!usdCents(amount) || !Intl.supportedValuesOf("currency").includes(currency))) finish("funding-invalid");
   const formatted = allocations.length ? formatUsd(allocationTotal(allocations))
     : new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(Number(amount)) + " " + currency;
-  const status = await releaseFunding(request, access.email, date, formatted, today).catch(() => "funding-write");
+  const status = await releaseFunding(request, access.email, date, formatted).catch(() => "funding-write");
   finish(status);
 }
 
