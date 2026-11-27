@@ -108,7 +108,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
         <AdminWorkflowTabs panels={{
           organizations: <VolunteerUnits members={members} viewer={access.email} admin />,
           roster: volunteerRoster,
-          balances: access.email === treasuryHistoryOwner ? <AdminFundBalances email={access.email} /> : null,
+          balances: access.email === treasuryHistoryOwner ? <AdminFundBalances email={access.email} status={status} /> : null,
           events: <AdminEvents viewer={access.email} />,
           funding: <AdminFundingRequests status={status} officerTitle={access.officerTitle} />,
           reporting: (

@@ -169,7 +169,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                 {funds.length ? <ul className="mt-3 divide-y divide-line">
                   {funds.map(item => (
                     <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                      <span>{item.name} · {formatUsd(item.remainingCents)} left</span>
+                      <span>{item.name}{item.unitName && ` · ${item.unitName}`} · {formatUsd(item.remainingCents)} left</span>
                       {item.remainingCents > 0 && <Link className="action-link" href={`/?section=funding&fund=${item.id}#funding-request`}>Request from this fund</Link>}
                     </li>
                   ))}
@@ -206,6 +206,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                   {fundingActivities.some(item => item.submittedBy === email && item.vtools) ? (
                     <VolunteerForm key={initialFund ?? "funding"} kind="funding" contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds}
                       activities={fundingActivities.flatMap(item => item.submittedBy === email && item.vtools ? [{ id: item.id, title: item.title, date: item.date.slice(0, 10), vtools: item.vtools,
+                        unitId: item.eventUnitId,
                         fundingBlockedReason: item.eventUnitId && leadershipBlocks.has(item.eventUnitId) ? leadershipBlocks.get(item.eventUnitId) : unlinkedFundingActivity }] : [])} />
                   ) : (
                     <p className="mt-3 text-sm text-ink-soft">

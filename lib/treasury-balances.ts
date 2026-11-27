@@ -3,7 +3,7 @@ import { usdCents } from "./fund-amounts";
 
 export type TreasuryBalanceRow = { id: string; name: string; date: string; incoming: number; released: number; balance: number; reference: string };
 type Baseline = { rows: TreasuryBalanceRow[]; includedFundIds: string[]; includedRequestIds: string[]; includedPaymentIds: number[] };
-type Fund = { id: string; name: string; cents?: number; amount?: string; receivedAt?: string };
+type Fund = { id: string; name: string; cents?: number; amount?: string; receivedAt?: string; treasuryRowId?: string };
 type Release = { requestId: string; releasedAt: string; releasedAmount: string; allocations?: { id: string; name: string; cents: number }[] };
 type Request = { id: string; title: string; fundingSource?: string; sourceReference?: { paymentId?: number } };
 
@@ -23,6 +23,12 @@ export function combineTreasuryBalances(baseline: Baseline, funds: Fund[], relea
   const warnings: string[] = [];
 
   for (const fund of funds) {
+    if (fund.treasuryRowId) {
+      const row = rows.find(row => row.id === fund.treasuryRowId);
+      if (row) fundRows.set(fund.id, row);
+      else warnings.push(`Check the imported ledger link for ${fund.name}.`);
+      continue;
+    }
     if (includedFunds.has(fund.id)) continue;
     const incoming = fund.cents ?? dollarAmount(fund.amount ?? "");
     if (incoming === null || !Number.isSafeInteger(incoming)) {

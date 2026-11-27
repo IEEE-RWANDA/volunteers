@@ -3,11 +3,12 @@ import { fundingReport } from "./funding-reports";
 import { usdCents } from "./fund-amounts";
 import type { FundAllocation, Submission } from "./volunteer-intake";
 
-type ListedFund = { id: string; name: string; amount?: string; cents?: number; volunteerEmail?: string };
-export type FundBalance = { id: string; name: string; remainingCents: number };
+type ListedFund = { id: string; name: string; amount?: string; cents?: number; volunteerEmail?: string; unitId?: string; unitName?: string; treasuryRowId?: string };
+export type FundBalance = { id: string; name: string; remainingCents: number; unitId?: string; unitName?: string };
 
-export async function listedFunds(releases?: Awaited<ReturnType<typeof allocatedReleases>>): Promise<(FundBalance & { volunteerEmail?: string })[]> {
-  const [paths, ledger] = await Promise.all([listIntakeRecords("listed-funds"), releases ?? allocatedReleases()]);
+export async function listedFunds(releases?: Awaited<ReturnType<typeof allocatedReleases>>): Promise<(FundBalance & { volunteerEmail?: string; treasuryRowId?: string })[]> {
+  const [paths, ledger, baseline] = await Promise.all([listIntakeRecords("listed-funds"), releases ?? allocatedReleases(),
+    readIntakeJson<{ rows: { id: string; balance: number }[] }>("treasury-history/fund-balances.json")]);
   const funds = await Promise.all(paths.map(path => readIntakeJson<ListedFund>(path)));
   const spent = new Map<string, number>();
   for (const release of ledger) {
@@ -15,18 +16,25 @@ export async function listedFunds(releases?: Awaited<ReturnType<typeof allocated
       spent.set(allocation.id, (spent.get(allocation.id) ?? 0) + allocation.cents);
     }
   }
-  return funds.filter(fund => fund !== null).map(fund => ({
-    id: fund.id,
-    name: fund.name,
-    volunteerEmail: fund.volunteerEmail,
-    remainingCents: (fund.cents ?? usdCents((fund.amount ?? "").replace(/^USD\s+/, "").replaceAll(",", ""))) - (spent.get(fund.id) ?? 0),
-  })).sort((a, b) => a.name.localeCompare(b.name));
+  return funds.filter(fund => fund !== null).map(fund => {
+    const amount = fund.cents ?? usdCents((fund.amount ?? "").replace(/^USD\s+/, "").replaceAll(",", ""));
+    const available = fund.treasuryRowId ? Math.min(amount, baseline?.rows.find(row => row.id === fund.treasuryRowId)?.balance ?? 0) : amount;
+    return {
+      id: fund.id,
+      name: fund.name,
+      volunteerEmail: fund.volunteerEmail,
+      unitId: fund.unitId,
+      unitName: fund.unitName,
+      treasuryRowId: fund.treasuryRowId,
+      remainingCents: available - (spent.get(fund.id) ?? 0),
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function fundsForVolunteer(email: string): Promise<FundBalance[]> {
   return (await listedFunds())
     .filter(fund => !fund.volunteerEmail || fund.volunteerEmail === email)
-    .map(({ id, name, remainingCents }) => ({ id, name, remainingCents }));
+    .map(({ id, name, remainingCents, unitId, unitName }) => ({ id, name, remainingCents, unitId, unitName }));
 }
 
 export function allocationTotal(allocations: FundAllocation[]) {
@@ -62,6 +70,11 @@ export async function releaseFunding(request: Submission, email: string, date: s
   if (reports.some(report => report?.review?.decision !== "approved" || !report.attachments.some(file => file.type === "receipt"))) return "funding-receipts";
   if (allocations.length) {
     const funds = await listedFunds(ledger);
+    const event = request.fundingEventId ? await readIntakeJson<Submission>(`records/${request.fundingEventId}.json`) : null;
+    if (allocations.some(item => {
+      const fund = funds.find(fund => fund.id === item.id);
+      return fund && ((fund.volunteerEmail && fund.volunteerEmail !== request.submittedBy) || (fund.unitId && fund.unitId !== event?.eventUnitId));
+    })) return "funding-assignment";
     if (allocations.some(item => item.cents > (funds.find(fund => fund.id === item.id)?.remainingCents ?? 0))) {
       return "funding-balance";
     }

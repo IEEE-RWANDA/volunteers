@@ -9,7 +9,7 @@ import { attachmentLimit, fundingRequestAttachmentCount, type OrganizerOption } 
 
 const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper px-3 py-2.5 font-normal text-ink focus:border-blue focus:outline-2 focus:outline-blue/30";
 
-export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; fundingBlockedReason?: string | null }[] }) {
+export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; unitId?: string; fundingBlockedReason?: string | null }[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
@@ -20,8 +20,8 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   const activity = activities.find(item => item.id === activityId);
   const funding = kind === "funding";
   const committees = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].sort();
-  const fundOptions = funds.filter(fund => fund.remainingCents > 0 || selectedFunds.includes(fund.id)).map(fund => ({
-    id: fund.id, name: fund.name, committee: `${formatUsd(fund.remainingCents)} left`,
+  const fundOptions = funds.filter(fund => (!activity || !fund.unitId || fund.unitId === activity.unitId) && (fund.remainingCents > 0 || selectedFunds.includes(fund.id))).map(fund => ({
+    id: fund.id, name: fund.name, committee: `${fund.unitName ? fund.unitName + " · " : ""}${formatUsd(fund.remainingCents)} left`,
   }));
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -44,6 +44,10 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
       }
       for (const id of selectedFunds) {
         const fund = funds.find(item => item.id === id);
+        if (fund?.unitId && fund.unitId !== activity?.unitId) {
+          setResult({ error: "Select funds assigned to this activity’s organization." });
+          return;
+        }
         const amount = fundAmounts[id]?.trim() ?? "";
         const cents = usdCents(amount);
         if (!fund || !cents || cents > fund.remainingCents) {
@@ -91,7 +95,15 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           {funding ? (
             <label className="block font-semibold">
               Event or activity
-              <select name="fundingEventId" className={field} required value={activityId} onChange={event => setActivityId(event.target.value)}>
+              <select name="fundingEventId" className={field} required value={activityId} onChange={event => {
+                const id = event.target.value;
+                setActivityId(id);
+                const unitId = activities.find(item => item.id === id)?.unitId;
+                setSelectedFunds(current => current.filter(id => {
+                  const fund = funds.find(item => item.id === id);
+                  return fund && (!fund.unitId || fund.unitId === unitId);
+                }));
+              }}>
                 <option value="" disabled>Select an event or activity</option>
                 {activities.map(item => <option key={item.id} value={item.id}>{item.title} · {item.date}</option>)}
               </select>

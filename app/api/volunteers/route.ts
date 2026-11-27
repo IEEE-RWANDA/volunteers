@@ -179,6 +179,7 @@ export async function POST(request: Request) {
     if (funds.length !== chosenFunds.size) return bad("A selected fund is unavailable to your account. Refresh and select again.");
     fundAllocations = [];
     for (const fund of funds) {
+      if (fund.unitId && fund.unitId !== activity?.eventUnitId) return bad("A selected fund belongs to a different organization. Select funds assigned to this activity’s organization.");
       const cents = usdCents(field(`fundAmount-${fund.id}`));
       if (!cents || cents > fund.remainingCents) {
         return bad(`Enter a positive USD amount within the balance for ${fund.name} (${formatUsd(fund.remainingCents)} left).`);

@@ -10,6 +10,7 @@ const messages: Record<string, { text: string; error?: boolean }> = {
   "fund-listed": { text: "Fund assigned to the selected volunteer." },
   "fund-list-invalid": { text: "Enter a funding source and a positive USD amount, and select a volunteer.", error: true },
   "funding-balance": { text: "A selected fund no longer has enough available. The release was not recorded.", error: true },
+  "funding-assignment": { text: "A selected fund is no longer assigned to this volunteer or activity’s organization. Check its assignment before releasing funds.", error: true },
   "funding-receipts": { text: "Approve the volunteer’s outstanding funding reports for this funder before releasing funds for a different activity.", error: true },
   "funding-invoice": { text: "Confirm that the invoices match the requested amount and currency before approving.", error: true },
   "funding-approved": { text: "Funding request approved. Record the release once it has taken place." },
