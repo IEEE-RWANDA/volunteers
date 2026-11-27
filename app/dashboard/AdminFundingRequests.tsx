@@ -1,7 +1,8 @@
 import { accountRoster } from "@/lib/session";
+import Link from "next/link";
 import { formatUsd } from "@/lib/fund-amounts";
 import { listedFunds } from "@/lib/listed-funds";
-import { allFundingRequests } from "@/lib/volunteer-store";
+import { allFundingRequests, volunteerEvents } from "@/lib/volunteer-store";
 import { kigaliToday } from "@/lib/volunteer-hours";
 import { approveRequest, listFund, recordRelease } from "./funding-actions";
 import type { OfficerTitle } from "@/lib/session";
@@ -21,7 +22,8 @@ const messages: Record<string, { text: string; error?: boolean }> = {
 };
 
 export default async function AdminFundingRequests({ status, officerTitle }: { status?: string; officerTitle?: OfficerTitle }) {
-  const [requests, funds, volunteers] = await Promise.all([allFundingRequests(), listedFunds(), accountRoster()]);
+  const [requests, funds, volunteers, events] = await Promise.all([allFundingRequests(), listedFunds(), accountRoster(), volunteerEvents()]);
+  const eventIds = new Set(events.map(event => event.id));
   const names = new Map(volunteers.map(volunteer => [volunteer.email, volunteer.name]));
   const message = status && Object.hasOwn(messages, status) ? messages[status] : null;
   const today = kigaliToday();
@@ -84,7 +86,11 @@ export default async function AdminFundingRequests({ status, officerTitle }: { s
                 return (
                   <tr key={request.id} className="align-top">
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
-                      {request.title}
+                      {request.fundingEventId && eventIds.has(request.fundingEventId) ? (
+                        <Link className="action-link" href={`/?section=team&tab=events#activity-${request.fundingEventId}`}>
+                          {request.title}
+                        </Link>
+                      ) : request.title}
                       <p className="mt-1 font-normal text-ink-soft">{request.committee}</p>
                       <p className="mt-1 font-normal text-ink-soft">{request.date}</p>
                     </th>

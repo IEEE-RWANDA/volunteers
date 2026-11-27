@@ -36,7 +36,7 @@ export default async function AdminEvents({ viewer }: { viewer: string }) {
               </thead>
               <tbody className="divide-y divide-line">
                 {events.map(event => (
-                  <tr className="align-top" key={event.id}>
+                  <tr id={`activity-${event.id}`} className="scroll-mt-5 align-top target:bg-paper-2" key={event.id}>
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">{event.title}</th>
                     <td className="px-3 py-3">
                       <span className="inline-block rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">Awaiting calendar decision</span>
