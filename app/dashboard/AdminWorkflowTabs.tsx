@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 const tabs = [
   { id: "events", label: "Event submissions", anchor: "admin-events" },
@@ -11,12 +11,31 @@ const tabs = [
 ] as const;
 
 export default function AdminWorkflowTabs({ panels }: { panels: Partial<Record<(typeof tabs)[number]["id"], ReactNode>> }) {
+  const navigation = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = document.querySelector<HTMLElement>(".dashboard-topbar");
+    const nav = navigation.current;
+    if (!header || !nav) return;
+    const update = () => {
+      document.documentElement.style.setProperty("--dashboard-header-height", `${header.offsetHeight}px`);
+      document.documentElement.style.setProperty("--admin-tabs-height", `${nav.offsetHeight}px`);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    observer.observe(nav);
+    update();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--dashboard-header-height");
+      document.documentElement.style.removeProperty("--admin-tabs-height");
+    };
+  }, []);
   const tab = useSearchParams().get("tab");
   const current = tabs.find(item => item.id === tab && panels[item.id])?.id ?? "events";
 
   return (
     <>
-      <nav aria-label="Admin workflows" className="dashboard-nav">
+      <nav ref={navigation} aria-label="Admin workflows" className="dashboard-nav admin-workflow-nav">
         {tabs.filter(item => panels[item.id]).map(item => {
           const href = `/?section=team&tab=${item.id}`;
           return (

@@ -1,6 +1,8 @@
 /* Volunteer workspace */
 .volunteer-workspace { min-height: 100svh; background: #f2f6fa; }
-.dashboard-topbar { background: white; border-bottom: 1px solid var(--color-line); }
+.dashboard-topbar { position: sticky; top: 0; z-index: 40; background: white; border-bottom: 1px solid var(--color-line); }
+.admin-workflow-nav { position: sticky; top: var(--dashboard-header-height, 0px); z-index: 30; padding-block: .5rem; background: #f2f6fa; border-bottom: 1px solid var(--color-line); }
+.volunteer-workspace [id^="activity-"], .volunteer-workspace #admin-events, .volunteer-workspace #admin-funding-panel, .volunteer-workspace #admin-reports, .volunteer-workspace #fund-balances { scroll-margin-top: calc(var(--dashboard-header-height, 0px) + var(--admin-tabs-height, 0px) + 1.25rem); }
 .dashboard-topbar-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .75rem; margin-inline: auto; max-width: 81rem; padding: .65rem clamp(1rem, 3.55vw, 3.5rem); }
 .dashboard-brand { display: flex; align-items: center; flex: none; gap: .6rem; color: var(--color-navy); font-size: .875rem; font-weight: 700; }
 .dashboard-logo { width: auto; height: auto; max-height: 38px; max-width: 100px; object-fit: contain; }
