@@ -42,6 +42,60 @@ export default async function TeamView({ access, status }: { access: Access; sta
   const reviewMessage = status && Object.hasOwn(reviewMessages, status) ? reviewMessages[status] : null;
   const message = status && Object.hasOwn(messages, status) ? messages[status] : null;
 
+  const volunteerRoster = (
+      <div className={access.role === "admin" ? "grid items-start gap-5 lg:grid-cols-[1.4fr_1fr]" : "max-w-3xl"}>
+        <section className="panel" aria-labelledby="team-hours">
+          <h2 id="team-hours" className="panel-title">{access.role === "lead" ? access.committee : "Volunteer roster"}</h2>
+          <p className="mt-2 text-sm text-ink-soft">See each volunteer’s total. Event leads and student branch chairs log hours from the Volunteers page.</p>
+          {members.length ? (
+            <div className="mt-5">
+                <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+                  {members.map(member => {
+                    const roles = [
+                      ...(member.officerTitle ? [member.officerTitle] : []),
+                      ...(experiences.get(member.email) ?? []).map(item => `${item.title} · ${item.unit.name}`),
+                    ];
+                    const primary = roles[0] ?? member.committee;
+                    return <li key={member.email}>
+                      <div className="flex items-center gap-3 px-3 py-2.5">
+                        <span className="min-w-0 flex-1">
+                          <span className="block wrap-anywhere font-semibold text-navy">{member.name}</span>
+                          {primary && (
+                            <span className="flex flex-wrap items-center gap-1.5 text-xs text-ink-soft" title={roles.length ? roles.join(", ") : undefined} aria-label={roles.length ? roles.join(", ") : undefined}>
+                              <span>{primary}</span>
+                              {roles.length > 1 && <span className="rounded-full bg-paper-2 px-1.5 py-0.5 font-semibold text-navy">+{roles.length - 1}</span>}
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold text-navy">{formatHours(totals.get(member.email) ?? 0)}</span>
+                      </div>
+                    </li>;
+                  })}
+                </ul>
+            </div>
+          ) : <p className="mt-4 text-sm text-ink-soft">No volunteers are listed in this committee.</p>}
+        </section>
+        {access.role === "admin" && (
+          <section className="panel" aria-labelledby="add-volunteer">
+            <h2 id="add-volunteer" className="panel-title">Add a volunteer</h2>
+            <p className="mt-2 text-sm text-ink-soft">Add a directory profile and assign it to a committee.</p>
+            <form action={addVolunteer} className="mt-4 space-y-4">
+              <label className="block text-sm font-semibold">Full name
+                <input name="name" className="login-input" maxLength={120} required />
+              </label>
+              <label className="block text-sm font-semibold">Email address
+                <input name="email" type="email" className="login-input" maxLength={254} required />
+              </label>
+              <label className="block text-sm font-semibold">Committee
+                <input name="committee" className="login-input" maxLength={120} required />
+              </label>
+              <button className="btn btn-primary" type="submit">Add volunteer</button>
+            </form>
+          </section>
+        )}
+      </div>
+  );
+
   return (
     <div className="space-y-5">
       {message && (
@@ -52,6 +106,8 @@ export default async function TeamView({ access, status }: { access: Access; sta
       {access.role === "admin" && <AdminAccessRequests status={status} />}
       {access.role === "admin" && (
         <AdminWorkflowTabs panels={{
+          organizations: <VolunteerUnits members={members} viewer={access.email} admin />,
+          roster: volunteerRoster,
           balances: access.email === treasuryHistoryOwner ? <AdminFundBalances email={access.email} /> : null,
           events: <AdminEvents viewer={access.email} />,
           funding: <AdminFundingRequests status={status} officerTitle={access.officerTitle} />,
@@ -134,58 +190,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
           ),
         }} />
       )}
-      {access.role === "admin" && <VolunteerUnits members={members} viewer={access.email} admin />}
-      <div className={access.role === "admin" ? "grid items-start gap-5 lg:grid-cols-[1.4fr_1fr]" : "max-w-3xl"}>
-        <section className="panel" aria-labelledby="team-hours">
-          <h2 id="team-hours" className="panel-title">{access.role === "lead" ? access.committee : "Volunteer roster"}</h2>
-          <p className="mt-2 text-sm text-ink-soft">See each volunteer’s total. Event leads and student branch chairs log hours from the Volunteers page.</p>
-          {members.length ? (
-            <div className="mt-5">
-                <ul className="mt-2 divide-y divide-line rounded-md border border-line">
-                  {members.map(member => {
-                    const roles = [
-                      ...(member.officerTitle ? [member.officerTitle] : []),
-                      ...(experiences.get(member.email) ?? []).map(item => `${item.title} · ${item.unit.name}`),
-                    ];
-                    const primary = roles[0] ?? member.committee;
-                    return <li key={member.email}>
-                      <div className="flex items-center gap-3 px-3 py-2.5">
-                        <span className="min-w-0 flex-1">
-                          <span className="block wrap-anywhere font-semibold text-navy">{member.name}</span>
-                          {primary && (
-                            <span className="flex flex-wrap items-center gap-1.5 text-xs text-ink-soft" title={roles.length ? roles.join(", ") : undefined} aria-label={roles.length ? roles.join(", ") : undefined}>
-                              <span>{primary}</span>
-                              {roles.length > 1 && <span className="rounded-full bg-paper-2 px-1.5 py-0.5 font-semibold text-navy">+{roles.length - 1}</span>}
-                            </span>
-                          )}
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold text-navy">{formatHours(totals.get(member.email) ?? 0)}</span>
-                      </div>
-                    </li>;
-                  })}
-                </ul>
-            </div>
-          ) : <p className="mt-4 text-sm text-ink-soft">No volunteers are listed in this committee.</p>}
-        </section>
-        {access.role === "admin" && (
-          <section className="panel" aria-labelledby="add-volunteer">
-            <h2 id="add-volunteer" className="panel-title">Add a volunteer</h2>
-            <p className="mt-2 text-sm text-ink-soft">Add a directory profile and assign it to a committee.</p>
-            <form action={addVolunteer} className="mt-4 space-y-4">
-              <label className="block text-sm font-semibold">Full name
-                <input name="name" className="login-input" maxLength={120} required />
-              </label>
-              <label className="block text-sm font-semibold">Email address
-                <input name="email" type="email" className="login-input" maxLength={254} required />
-              </label>
-              <label className="block text-sm font-semibold">Committee
-                <input name="committee" className="login-input" maxLength={120} required />
-              </label>
-              <button className="btn btn-primary" type="submit">Add volunteer</button>
-            </form>
-          </section>
-        )}
-      </div>
+      {access.role !== "admin" && volunteerRoster}
     </div>
   );
 }

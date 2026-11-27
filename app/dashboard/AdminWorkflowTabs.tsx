@@ -8,6 +8,8 @@ const tabs = [
   { id: "funding", label: "Funding requests", anchor: "admin-funding-panel" },
   { id: "reporting", label: "Reporting", anchor: "admin-reports" },
   { id: "balances", label: "Fund balances", anchor: "fund-balances" },
+  { id: "organizations", label: "Organizations", anchor: "volunteer-units" },
+  { id: "roster", label: "Volunteer roster", anchor: "team-hours" },
 ] as const;
 
 export default function AdminWorkflowTabs({ panels }: { panels: Partial<Record<(typeof tabs)[number]["id"], ReactNode>> }) {

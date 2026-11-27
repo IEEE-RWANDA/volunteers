@@ -8,7 +8,7 @@ import { addVolunteerUnit, applyForUnitRole, archiveVolunteerUnit, assignVolunte
 
 function finish(status: string): never {
   revalidatePath("/");
-  redirect("/?section=team&team=" + status);
+  redirect("/?section=team&tab=roster&team=" + status);
 }
 
 export async function addVolunteer(form: FormData) {
