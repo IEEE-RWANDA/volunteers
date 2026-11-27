@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import ActionModal from "./ActionModal";
 import UnitLogo from "./UnitLogo";
+import StudentBranchTabs from "./StudentBranchTabs";
 import { canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
 import { addUnitRole, assignUnit, createUnit, deleteUnit, editUnit, giveUnitBadge, reviewUnitApplication, updateUnitBadge } from "./team-actions";
 
@@ -66,6 +67,46 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
       <div className="mt-5 space-y-6">
         {groups.map(group => {
           const groupUnits = units.filter(unit => unit.type === group.type);
+          const cards = groupUnits.map(unit => {
+            const chapters = units.filter(chapter => (chapter.type === "branchChapter" || chapter.type === "branchAffinity") && chapter.parentId === unit.id);
+            return (
+              <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
+                <div className="mb-3">
+                  <div className="flex items-start gap-3">
+                    <UnitLogo unit={unit} />
+                    <div className="min-w-0 grow">
+                      <h4 className="wrap-anywhere font-semibold text-navy">{unit.name}</h4>
+                      <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[unit.type]}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3">{unitActions(unit)}</div>
+                </div>
+                {unitDetails(unit.id)}
+                {chapters.length > 0 && (
+                  <div className="mt-4 border-t border-line pt-3">
+                    <h5 className="text-sm font-semibold text-navy">Student branch organizations</h5>
+                    <ul className="mt-3 grid items-start gap-3 md:grid-cols-2">
+                      {chapters.map(chapter => (
+                        <li key={chapter.id} className="rounded-md border border-line p-3">
+                          <div className="mb-3">
+                            <div className="flex items-start gap-3">
+                              <UnitLogo unit={chapter} />
+                              <div className="min-w-0 grow">
+                                <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
+                                <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[chapter.type]}</span>
+                              </div>
+                            </div>
+                            <div className="mt-3">{unitActions(chapter)}</div>
+                          </div>
+                          {unitDetails(chapter.id)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </li>
+            );
+          });
           return (
             <section key={group.type} aria-labelledby={`volunteer-group-${group.type}`} className="border-t border-line pt-5">
               <div className="flex items-center justify-between gap-3">
@@ -77,48 +118,11 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                 )}
               </div>
               {groupUnits.length ? (
-                <ul className={`mt-3 grid items-start gap-4 ${group.type === "branch" ? "" : "md:grid-cols-2 xl:grid-cols-3"}`}>
-                  {groupUnits.map(unit => {
-                    const chapters = units.filter(chapter => (chapter.type === "branchChapter" || chapter.type === "branchAffinity") && chapter.parentId === unit.id);
-                    return (
-                      <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
-                        <div className="mb-3">
-                          <div className="flex items-start gap-3">
-                            <UnitLogo unit={unit} />
-                            <div className="min-w-0 grow">
-                              <h4 className="wrap-anywhere font-semibold text-navy">{unit.name}</h4>
-                              <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[unit.type]}</span>
-                            </div>
-                          </div>
-                          <div className="mt-3">{unitActions(unit)}</div>
-                        </div>
-                        {unitDetails(unit.id)}
-                        {chapters.length > 0 && (
-                          <div className="mt-4 border-t border-line pt-3">
-                            <h5 className="text-sm font-semibold text-navy">Student branch organizations</h5>
-                            <ul className="mt-3 space-y-3">
-                              {chapters.map(chapter => (
-                                <li key={chapter.id} className="rounded-md border border-line p-3">
-                                  <div className="mb-3">
-                                    <div className="flex items-start gap-3">
-                                      <UnitLogo unit={chapter} />
-                                      <div className="min-w-0 grow">
-                                        <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
-                                        <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[chapter.type]}</span>
-                                      </div>
-                                    </div>
-                                    <div className="mt-3">{unitActions(chapter)}</div>
-                                  </div>
-                                  {unitDetails(chapter.id)}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                group.type === "branch" ? (
+                  <StudentBranchTabs branches={groupUnits.map(unit => ({ id: unit.id, name: unit.name, logo: <UnitLogo unit={unit} /> }))} panels={cards} />
+                ) : (
+                  <ul className="mt-3 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">{cards}</ul>
+                )
               ) : <p className="mt-2 text-sm text-ink-soft">{group.empty}</p>}
             </section>
           );

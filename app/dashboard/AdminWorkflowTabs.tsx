@@ -34,6 +34,13 @@ export default function AdminWorkflowTabs({ panels }: { panels: Partial<Record<(
   }, []);
   const tab = useSearchParams().get("tab");
   const current = tabs.find(item => item.id === tab && panels[item.id])?.id ?? "events";
+  const previousTab = useRef(current);
+  useEffect(() => {
+    if (previousTab.current === current) return;
+    previousTab.current = current;
+    const active = tabs.find(item => item.id === current);
+    if (active) document.getElementById(active.anchor)?.scrollIntoView({ block: "start" });
+  }, [current]);
 
   return (
     <>
