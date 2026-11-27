@@ -1,5 +1,4 @@
 import { accountRoster } from "@/lib/session";
-import Link from "next/link";
 import { formatUsd } from "@/lib/fund-amounts";
 import { listedFunds } from "@/lib/listed-funds";
 import { allFundingRequests, volunteerEvents } from "@/lib/volunteer-store";
@@ -87,9 +86,9 @@ export default async function AdminFundingRequests({ status, officerTitle }: { s
                   <tr key={request.id} className="align-top">
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
                       {request.fundingEventId && eventIds.has(request.fundingEventId) ? (
-                        <Link className="action-link" href={`/?section=team&tab=events#activity-${request.fundingEventId}`}>
+                        <a className="action-link" href={`/?section=team&tab=events#activity-${request.fundingEventId}`}>
                           {request.title}
-                        </Link>
+                        </a>
                       ) : request.title}
                       <p className="mt-1 font-normal text-ink-soft">{request.committee}</p>
                       <p className="mt-1 font-normal text-ink-soft">{request.date}</p>
