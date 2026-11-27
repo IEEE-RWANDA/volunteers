@@ -13,6 +13,7 @@ import AdminEvents from "./AdminEvents";
 import VolunteerUnits from "./VolunteerUnits";
 import { addVolunteer } from "./team-actions";
 import { volunteerExperiences } from "@/lib/volunteer-units";
+import { allFundingRequests, volunteerEvents } from "@/lib/volunteer-store";
 
 type Access = NonNullable<Awaited<ReturnType<typeof getTeamAccess>>>;
 
@@ -28,6 +29,10 @@ export default async function TeamView({ access, status }: { access: Access; sta
   const emails = members.map(member => member.email);
   const [totals, experiences] = await Promise.all([teamHourTotals(emails), volunteerExperiences(emails)]);
   const reports = access.role === "admin" ? await listFundingReports() : [];
+  const [requests, events] = access.role === "admin" ? await Promise.all([allFundingRequests(), volunteerEvents()]) : [[], []];
+  const eventIds = new Set(events.map(event => event.id));
+  const reportActivities = new Map(requests.filter(request => request.fundingEventId && eventIds.has(request.fundingEventId))
+    .map(request => [request.id, request.fundingEventId]));
   const reviewMessages: Record<string, string> = {
     "report-approved": "Report approved.",
     "report-returned": "Report sent back. The volunteer can see your comments and resubmit.",
@@ -70,7 +75,11 @@ export default async function TeamView({ access, status }: { access: Access; sta
                       {reports.map(report => (
                         <tr key={report.requestId} className="align-top">
                           <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
-                            {report.title}
+                            {reportActivities.has(report.requestId) ? (
+                              <a className="action-link" href={`/?section=team&tab=events#activity-${reportActivities.get(report.requestId)}`}>
+                                {report.title}
+                              </a>
+                            ) : report.title}
                             <p className="mt-1 font-normal text-ink-soft">{report.committee}</p>
                           </th>
                           <td className="wrap-anywhere px-3 py-3 text-ink-soft">{report.submittedBy}</td>
