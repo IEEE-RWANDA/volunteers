@@ -1,3 +1,5 @@
+import AdminFundBalances from "./AdminFundBalances";
+import { treasuryHistoryOwner } from "./TreasuryHistory";
 import ReportAttachment from "./ReportAttachment";
 import AdminWorkflowTabs from "./AdminWorkflowTabs";
 import type { getTeamAccess } from "@/lib/session";
@@ -45,6 +47,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
       {access.role === "admin" && <AdminAccessRequests status={status} />}
       {access.role === "admin" && (
         <AdminWorkflowTabs panels={{
+          balances: access.email === treasuryHistoryOwner ? <AdminFundBalances email={access.email} /> : null,
           events: <AdminEvents viewer={access.email} />,
           funding: <AdminFundingRequests status={status} officerTitle={access.officerTitle} />,
           reporting: (
