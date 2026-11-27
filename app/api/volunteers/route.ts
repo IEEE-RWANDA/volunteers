@@ -1,3 +1,4 @@
+import { receiptDriveEnabled, trashDriveReceipt, uploadDriveReceipt } from "@/lib/receipt-drive";
 import { randomUUID } from "node:crypto";
 import { attachmentCount, attachmentLimit, fundingRequestAttachmentCount, type Organizer, type Submission } from "@/lib/volunteer-intake";
 import { fundingReport, ownFundingRequest, reportPath, type FundingReport } from "@/lib/funding-reports";
@@ -78,18 +79,26 @@ async function submitFundingReport(form: FormData, email: string) {
     if (!extensions.test(name) || !supportedFile(name, bytes)) return bad("Use PDF or image receipts, an XLSX expense sheet, and a PDF activity report.");
     const path = `report-files/${requestId}/${batch}/${index}`;
     report.attachments.push({ name, type, path });
-    files.push({ path, bytes });
+    files.push(bytes);
   }
 
   const saved: string[] = [];
+  const driveIds: string[] = [];
   try {
-    for (const file of files) {
-      await saveIntakeFile(file.path, file.bytes);
-      saved.push(file.path);
+    for (const [index, bytes] of files.entries()) {
+      const attachment = report.attachments[index];
+      if (attachment.type === "receipt" && receiptDriveEnabled()) {
+        attachment.driveFileId = await uploadDriveReceipt(attachment.name, bytes);
+        driveIds.push(attachment.driveFileId);
+      } else {
+        await saveIntakeFile(attachment.path, bytes);
+        saved.push(attachment.path);
+      }
     }
     await saveIntakeFile(reportPath(requestId, version), JSON.stringify(report));
   } catch {
-    await removeIntakeFiles(saved).catch(() => console.error("Funding report attachment cleanup failed", requestId));
+    const cleanup = await Promise.allSettled([removeIntakeFiles(saved), ...driveIds.map(trashDriveReceipt)]);
+    if (cleanup.some(result => result.status === "rejected")) console.error("Funding report attachment cleanup failed", requestId);
     if (await fundingReport(requestId, version).catch(() => null)) return bad("A report has already been submitted for this request.", 409);
     return bad("Your report could not be saved. Please try again.", 503);
   }

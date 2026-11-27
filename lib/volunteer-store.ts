@@ -191,14 +191,21 @@ export async function allFundingRequests() {
 
 export async function privateAttachment(path: string, name: string) {
   const bytes = await readIntakeFile(path);
+  return privateAttachmentResponse(bytes, name);
+}
+
+export function privateAttachmentResponse(bytes: Uint8Array | null, name: string, preview = false) {
   if (!bytes) return new Response(null, { status: 404 });
+  const inline = preview && /\.pdf$/i.test(name) && new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-";
+  if (preview && !inline) return new Response(null, { status: 415 });
   const filename = encodeURIComponent(name).replace(/['()*]/g, char => "%" + char.charCodeAt(0).toString(16));
   return new Response(new Blob([Uint8Array.from(bytes)]), {
     headers: {
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
-      "Content-Type": "application/octet-stream",
-      "Content-Disposition": "attachment; filename*=UTF-8''" + filename,
+      "Content-Type": inline ? "application/pdf" : "application/octet-stream",
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${filename}`,
+      "X-Frame-Options": "SAMEORIGIN",
     },
   });
 }

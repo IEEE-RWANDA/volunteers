@@ -9,7 +9,7 @@ export type FundingReport = {
   photos: string;
   vtools: string;
   socialPost?: string;
-  attachments: { name: string; path: string; type: "receipt" | "expense sheet" | "activity report" }[];
+  attachments: { name: string; path: string; driveFileId?: string; type: "receipt" | "expense sheet" | "activity report" }[];
 };
 
 export async function ownFundingRequest(id: string, email: string) {

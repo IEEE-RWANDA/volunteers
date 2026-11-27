@@ -1,3 +1,4 @@
+import ReportAttachment from "./ReportAttachment";
 import AdminWorkflowTabs from "./AdminWorkflowTabs";
 import type { getTeamAccess } from "@/lib/session";
 import { listFundingReports, reportStatus } from "@/lib/funding-reports";
@@ -83,9 +84,12 @@ export default async function TeamView({ access, status }: { access: Access; sta
                                   <a className="action-link" href={report.vtools} target="_blank" rel="noreferrer">vTools event</a>
                                   {report.socialPost && <a className="action-link" href={report.socialPost} target="_blank" rel="noreferrer">Social media post</a>}
                                   {report.attachments.map((file, index) => (
-                                    <a className="action-link wrap-anywhere" key={file.path} href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}>
-                                      {file.type} · {file.name}
-                                    </a>
+                                    <ReportAttachment
+                                      key={file.path}
+                                      href={`/api/funding-reports/${report.requestId}/${index}?version=${report.version}`}
+                                      label={`${file.type} · ${file.name}`}
+                                      pdf={/\.pdf$/i.test(file.name)}
+                                    />
                                   ))}
                                 </div>
                                 {report.review?.comments && (
