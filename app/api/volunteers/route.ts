@@ -5,6 +5,7 @@ import { fundingReport, ownFundingRequest, reportPath, type FundingReport } from
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import { allocationTotal, fundsForVolunteer } from "@/lib/listed-funds";
 import { volunteerUnits } from "@/lib/volunteer-units";
+import { fundingLeadershipBlocks, unlinkedFundingActivity } from "@/lib/funding-leadership";
 import { organizerDirectory } from "@/lib/volunteer-roster";
 import { getVolunteer } from "@/lib/session";
 import { ownVolunteerEvent, removeIntakeFiles, saveIntakeFile } from "@/lib/volunteer-store";
@@ -129,6 +130,12 @@ export async function POST(request: Request) {
   if (kind !== "event" && kind !== "funding") return bad("Select a submission type.");
   const activity = kind === "funding" ? await ownVolunteerEvent(field("fundingEventId"), volunteer) : null;
   if (kind === "funding" && !activity) return bad("Select an event or activity you created before requesting funds.");
+  if (activity) {
+    const blocks = await fundingLeadershipBlocks();
+    const blocked = activity.eventUnitId && blocks.has(activity.eventUnitId)
+      ? blocks.get(activity.eventUnitId) : unlinkedFundingActivity;
+    if (blocked) return bad(blocked);
+  }
   const title = activity?.title ?? field("title");
   const email = field("email");
   const leadVolunteerName = field("leadVolunteerName");

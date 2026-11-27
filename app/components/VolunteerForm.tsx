@@ -9,7 +9,7 @@ import { attachmentLimit, fundingRequestAttachmentCount, type OrganizerOption } 
 
 const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper px-3 py-2.5 font-normal text-ink focus:border-blue focus:outline-2 focus:outline-blue/30";
 
-export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string }[] }) {
+export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; fundingBlockedReason?: string | null }[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
@@ -27,6 +27,10 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
+    if (funding && (!activity || activity.fundingBlockedReason)) {
+      setResult({ error: activity?.fundingBlockedReason ?? "Select an event or activity before requesting funds." });
+      return;
+    }
     const form = event.currentTarget;
     const data = new FormData(form);
     if (funding && !data.getAll("organizer").length) {
@@ -91,6 +95,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
                 <option value="" disabled>Select an event or activity</option>
                 {activities.map(item => <option key={item.id} value={item.id}>{item.title} · {item.date}</option>)}
               </select>
+              {activity?.fundingBlockedReason && <span role="status" className="mt-2 block font-normal text-red-700">{activity.fundingBlockedReason}</span>}
             </label>
           ) : (
             <label className="block font-semibold">
@@ -136,7 +141,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
               <p className="text-sm text-ink-soft">You’ll be listed as the event lead and can record hours for the volunteers selected below once the event ends.</p>
               {eventUnits.length > 0 && (
                 <label className="block font-semibold">
-                  Chapter or student branch (optional)
+                  Organization (required for funding)
                   <select name="eventUnitId" className={field}>
                     <option value="">No unit</option>
                     {eventUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
@@ -245,7 +250,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         </label>
       )}
       <div className="flex justify-center">
-        <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!organizers.length || !fundOptions.length))}>
+        <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!activity || Boolean(activity.fundingBlockedReason) || !organizers.length || !fundOptions.length))}>
           {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event or activity"}
         </button>
       </div>
