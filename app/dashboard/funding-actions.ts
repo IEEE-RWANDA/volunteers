@@ -62,7 +62,7 @@ export async function listFund(form: FormData) {
   if (!name || name.length > 150 || !cents || !(await accountRoster()).some(account => account.email === volunteerEmail)) finish("fund-list-invalid");
   const id = randomUUID();
   try {
-    await saveIntakeFile(`listed-funds/${id}.json`, JSON.stringify({ id, name, cents, volunteerEmail }));
+    await saveIntakeFile(`listed-funds/${id}.json`, JSON.stringify({ id, name, cents, volunteerEmail, receivedAt: new Date().toISOString() }));
   } catch {
     finish("funding-write");
   }

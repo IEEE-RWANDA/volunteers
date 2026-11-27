@@ -1,13 +1,12 @@
-import { readIntakeJson } from "@/lib/volunteer-store";
+import FundReleaseHistory from "./FundReleaseHistory";
+import { treasuryReleaseHistory } from "@/lib/treasury-release-history";
+import { treasuryBalances } from "@/lib/treasury-balances";
 import { formatUsd } from "@/lib/fund-amounts";
 import { treasuryHistoryOwner } from "./TreasuryHistory";
 
-type BalanceRow = { id: string; name: string; date: string; incoming: number; released: number; balance: number; reference: string };
-
 export default async function AdminFundBalances({ email }: { email: string }) {
   if (email !== treasuryHistoryOwner) return null;
-  const ledger = await readIntakeJson<{ source: string; rows: BalanceRow[] }>("treasury-history/fund-balances.json");
-  const rows = ledger?.rows ?? [];
+  const [{ rows, warnings }, releases] = await Promise.all([treasuryBalances(), treasuryReleaseHistory()]);
   const totals = rows.reduce((sum, row) => ({
     incoming: sum.incoming + row.incoming,
     released: sum.released + row.released,
@@ -17,7 +16,8 @@ export default async function AdminFundBalances({ email }: { email: string }) {
   return (
     <section className="panel" aria-labelledby="fund-balances">
       <h2 id="fund-balances" className="panel-title">Fund balances</h2>
-      <p className="mt-2 text-sm text-ink-soft">Funding allocations from the treasurer’s spreadsheet. Balances reflect the imported ledger.</p>
+      <p className="mt-2 text-sm text-ink-soft">Imported funding plus new portal funds and releases. All amounts are in USD.</p>
+      {warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm text-red-700">{warning}</p>)}
       <div className="mt-4 overflow-x-auto" role="region" aria-label="Fund balances table" tabIndex={0}>
         <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="border-b border-line bg-paper-2 text-navy">
@@ -53,6 +53,7 @@ export default async function AdminFundBalances({ email }: { email: string }) {
           </tfoot>
         </table>
       </div>
+      <FundReleaseHistory rows={releases} />
       {!rows.length && <p className="mt-3 text-sm text-ink-soft">No funding ledger has been imported.</p>}
     </section>
   );
