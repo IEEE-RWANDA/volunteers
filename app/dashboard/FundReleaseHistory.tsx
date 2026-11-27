@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type FundReleaseRow = { id: string; title: string; date: string; amount: string; actor: string; method: string; reported: string };
+export type FundReleaseRow = { id: string; title: string; date: string; amount: string; actor: string; method: string; reported: string; eventId?: string };
 
 export default function FundReleaseHistory({ rows }: { rows: FundReleaseRow[] }) {
   const [filter, setFilter] = useState("all");
@@ -29,7 +29,11 @@ export default function FundReleaseHistory({ rows }: { rows: FundReleaseRow[] })
           <tbody className="divide-y divide-line">
             {visible.map(row => (
               <tr key={row.id} className="align-top">
-                <th scope="row" className="wrap-anywhere px-3 py-3 font-normal">{row.title}</th>
+                <th scope="row" className="wrap-anywhere px-3 py-3 font-normal">
+                  {row.method === "transfer" && row.eventId ? (
+                    <a className="action-link" href={`/?section=team&tab=events#activity-${row.eventId}`}>{row.title}</a>
+                  ) : row.title}
+                </th>
                 <td className="whitespace-nowrap px-3 py-3">{row.date}</td>
                 <td className="whitespace-nowrap px-3 py-3">{row.amount}</td>
                 <td className="px-3 py-3">{row.actor === "kip" ? "Kip" : row.actor === "cyiza" ? "Cyiza" : "Unverified"}{row.method === "card" && " · Card"}</td>
