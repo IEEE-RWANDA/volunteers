@@ -1,10 +1,9 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { accountRoster, getTeamAccess } from "@/lib/session";
-import { approveFunding, fundingRequest, saveIntakeFile } from "@/lib/volunteer-store";
+import { getTeamAccess } from "@/lib/session";
+import { approveFunding, fundingRequest } from "@/lib/volunteer-store";
 import { allocationTotal, releaseFunding } from "@/lib/listed-funds";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import { kigaliToday } from "@/lib/volunteer-hours";
@@ -49,22 +48,4 @@ export async function recordRelease(form: FormData) {
     : new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(Number(amount)) + " " + currency;
   const status = await releaseFunding(request, access.email, date, formatted).catch(() => "funding-write");
   finish(status);
-}
-
-
-export async function listFund(form: FormData) {
-  const access = await getTeamAccess();
-  if (access?.role !== "admin") redirect("/");
-  const name = String(form.get("name") ?? "").trim();
-  const usd = String(form.get("amount") ?? "").trim();
-  const cents = usdCents(usd);
-  const volunteerEmail = String(form.get("volunteerEmail") ?? "");
-  if (!name || name.length > 150 || !cents || !(await accountRoster()).some(account => account.email === volunteerEmail)) finish("fund-list-invalid");
-  const id = randomUUID();
-  try {
-    await saveIntakeFile(`listed-funds/${id}.json`, JSON.stringify({ id, name, cents, volunteerEmail, receivedAt: new Date().toISOString() }));
-  } catch {
-    finish("funding-write");
-  }
-  finish("fund-listed");
 }
