@@ -28,6 +28,8 @@ export async function treasuryReleaseHistory() {
     return {
       id: request.id, title: request.title, date: request.releasedAt!.slice(0, 10), amount: request.releasedAmount ?? "",
       actor, method: "transfer",
+      allocations: allocations.find(release => release.requestId === request.id)?.allocations ?? request.fundAllocations,
+      paymentId,
       eventId: request.fundingEventId && eventIds.has(request.fundingEventId) ? request.fundingEventId : undefined,
       reported: report ? reportStatus(report.review).label : "Not submitted",
     };

@@ -5,19 +5,25 @@ import { formatUsd } from "@/lib/fund-amounts";
 import { fundReleaseStatus } from "@/lib/fund-release-status";
 
 type Option = { id: string; label: string };
-type Row = { id: string; volunteerEmail?: string; unitId?: string; incoming: number; released: number; balance: number; content: ReactNode };
+type Row = { id: string; name: string; reference: string; volunteerEmail?: string; unitId?: string; incoming: number; released: number; balance: number; content: ReactNode };
 
 export default function FundBalancesTable({ rows, volunteers, units }: { rows: Row[]; volunteers: Option[]; units: Option[] }) {
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
   const [volunteer, setVolunteer] = useState("");
   const [unit, setUnit] = useState("");
   const [releaseStatus, setReleaseStatus] = useState("");
-  const visible = rows.filter(row => (!volunteer || (volunteer === "unassigned" ? !row.volunteerEmail : row.volunteerEmail === volunteer)) &&
+  const visible = rows.filter(row => (!query || `${row.name} ${row.reference}`.toLowerCase().includes(query)) &&
+    (!volunteer || (volunteer === "unassigned" ? !row.volunteerEmail : row.volunteerEmail === volunteer)) &&
     (!unit || (unit === "unassigned" ? !row.unitId : row.unitId === unit)) &&
     (!releaseStatus || fundReleaseStatus(row) === releaseStatus));
   const totals = visible.reduce((sum, row) => ({ incoming: sum.incoming + row.incoming, released: sum.released + row.released, balance: sum.balance + row.balance }), { incoming: 0, released: 0, balance: 0 });
 
   return <>
     <div className="mt-4 flex flex-wrap justify-center gap-3">
+      <label className="min-w-0 w-full text-sm font-semibold sm:w-72">Search funds
+        <input type="search" className="login-input" placeholder="Funding source or activity name" value={search} onChange={event => setSearch(event.target.value)} />
+      </label>
       <label className="min-w-0 text-sm font-semibold">Filter by volunteer
         <select className="login-input max-w-full" value={volunteer} onChange={event => setVolunteer(event.target.value)}>
           <option value="">All volunteers</option>
@@ -40,7 +46,7 @@ export default function FundBalancesTable({ rows, volunteers, units }: { rows: R
           <option value="not-released">Not released yet</option>
         </select>
       </label>
-      {(volunteer || unit || releaseStatus) && <button type="button" className="self-end rounded-md px-3 py-3 text-sm font-semibold text-blue" onClick={() => { setVolunteer(""); setUnit(""); setReleaseStatus(""); }}>Clear filters</button>}
+      {(query || volunteer || unit || releaseStatus) && <button type="button" className="self-end rounded-md px-3 py-3 text-sm font-semibold text-blue" onClick={() => { setSearch(""); setVolunteer(""); setUnit(""); setReleaseStatus(""); }}>Clear filters</button>}
     </div>
     <div className="mt-4 scrollable-table" role="region" aria-label="Fund balances table" tabIndex={0}>
       <table className="w-full min-w-[60rem] text-left text-sm">
@@ -53,7 +59,7 @@ export default function FundBalancesTable({ rows, volunteers, units }: { rows: R
         </tbody>
         <tfoot className="border-t border-line font-semibold text-navy">
           <tr>
-            <th scope="row" colSpan={2} className="px-3 py-3">{volunteer || unit || releaseStatus ? "Filtered total" : "Total"}</th>
+            <th scope="row" colSpan={2} className="px-3 py-3">{query || volunteer || unit || releaseStatus ? "Filtered total" : "Total"}</th>
             <td className="px-3 py-3 text-right">{formatUsd(totals.incoming)}</td>
             <td className="px-3 py-3 text-right">{formatUsd(totals.released)}</td>
             <td className="px-3 py-3 text-right">{formatUsd(totals.balance)}</td>

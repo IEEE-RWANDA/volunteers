@@ -10,12 +10,18 @@ import { roster } from "@/lib/volunteer-roster";
 import { volunteerUnits } from "@/lib/volunteer-units";
 import { listedFunds } from "@/lib/listed-funds";
 import { assignBalanceFund } from "./treasury-actions";
+import { readIntakeJson } from "@/lib/volunteer-store";
+import { fundReleaseDetails } from "@/lib/fund-release-details";
 
 export default async function AdminFundBalances({ email, status }: { email: string; status?: string }) {
   if (email !== treasuryHistoryOwner) return null;
-  const [{ rows, warnings }, releases, volunteers, units, funds] = await Promise.all([
+  const [{ rows, warnings }, releases, volunteers, units, funds, history, baseline] = await Promise.all([
     treasuryBalances(), treasuryReleaseHistory(), roster(), volunteerUnits(), listedFunds(),
+    readIntakeJson<{ payments: { id: string; title: string; details: string[] }[]; activities?: { details: string[]; paymentIds?: string[] }[] }>("treasury-history/ieee-rwanda.json"),
+    readIntakeJson<{ includedRequestIds: string[]; includedPaymentIds: number[] }>("treasury-history/fund-balances.json"),
   ]);
+  const releaseDetails = fundReleaseDetails(rows, history?.payments ?? [], releases, funds,
+    { includedRequestIds: baseline?.includedRequestIds ?? [], includedPaymentIds: baseline?.includedPaymentIds ?? [] }, history?.activities);
 
   const filterVolunteers = new Map(volunteers.map(person => [person.email, person.name]));
   for (const fund of funds) {
@@ -31,6 +37,8 @@ export default async function AdminFundBalances({ email, status }: { email: stri
       {warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm text-red-700">{warning}</p>)}
       <FundBalancesTable volunteers={[...filterVolunteers].map(([id, label]) => ({ id, label }))} units={units.map(unit => ({ id: unit.id, label: unit.label }))} rows={rows.map(row => {
               const assigned = funds.find(fund => fund.id === row.id || fund.treasuryRowId === row.id);
+              const details = releaseDetails.get(row.id) ?? [];
+              const unitemized = row.released - details.reduce((sum, detail) => sum + detail.cents, 0);
               return { ...row, volunteerEmail: assigned?.volunteerEmail, unitId: assigned?.unitId, content: (
               <tr key={row.id} className={`align-top ${row.balance < 0 ? "bg-red-50" : row.balance === 0 ? "bg-green-50" : row.released > 0 ? "bg-yellow-50" : ""}`}>
                 <th scope="row" className="wrap-anywhere px-3 py-3 font-normal">
@@ -39,7 +47,19 @@ export default async function AdminFundBalances({ email, status }: { email: stri
                 </th>
                 <td className="whitespace-nowrap px-3 py-3">{row.date}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right">{formatUsd(row.incoming)}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right">{formatUsd(row.released)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right">
+                  {row.released > 0 ? <ActionModal icon="plus" label={`View releases for ${row.name}`} title="Fund releases" trigger={formatUsd(row.released)}>
+                    <p className="mb-4 text-sm text-ink-soft">{row.name}</p>
+                    <ul className="divide-y divide-line">
+                      {details.map(detail => <li key={detail.id} className="py-3">
+                        <div className="flex justify-between gap-4 text-sm"><span className="min-w-0 whitespace-normal">{detail.title}</span><strong className="shrink-0">{formatUsd(detail.cents)}</strong></div>
+                        <p className="mt-1 text-xs text-ink-soft">{detail.date} · {detail.id.startsWith("payment-") ? `CB payment ${detail.id.slice(8)}` : "Portal release"}</p>
+                      </li>)}
+                      {unitemized !== 0 && <li className={`flex justify-between gap-4 py-3 text-sm ${unitemized < 0 ? "text-red-700" : ""}`}><span className="whitespace-normal">{unitemized > 0 ? "Released amount not yet itemized" : "Difference from ledger total — needs reconciliation"}</span><strong>{formatUsd(unitemized)}</strong></li>}
+                    </ul>
+                    <p className="mt-4 flex justify-between border-t border-line pt-3 font-semibold"><span>Total released</span><span>{formatUsd(row.released)}</span></p>
+                  </ActionModal> : formatUsd(row.released)}
+                </td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-semibold ${row.balance < 0 ? "text-red-700" : "text-navy"}`}>{formatUsd(row.balance)}</td>
                 <td className="min-w-44 px-3 py-3">
                   {assigned?.volunteerEmail && (

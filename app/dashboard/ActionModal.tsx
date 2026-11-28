@@ -10,13 +10,14 @@ const icons = {
   edit: <><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /><path d="m14 7 3 3" /></>,
 } as const;
 
-export default function ActionModal({ label, title, icon, children, tone = "default", compact = false }: {
+export default function ActionModal({ label, title, icon, children, tone = "default", compact = false, trigger }: {
   label: string;
   title: string;
   icon: keyof typeof icons;
   children: ReactNode;
   tone?: "default" | "danger";
   compact?: boolean;
+  trigger?: ReactNode;
 }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -25,15 +26,15 @@ export default function ActionModal({ label, title, icon, children, tone = "defa
     <>
       <button
         type="button"
-        className={`inline-grid shrink-0 place-items-center rounded-md border bg-paper transition-colors hover:bg-paper-2 ${compact ? "size-7" : "size-9"} ${tone === "danger" ? "border-red-200 text-red-700 hover:border-red-500" : "border-line text-blue hover:border-blue"}`}
+        className={trigger ? "text-blue underline decoration-blue/30 underline-offset-4 hover:decoration-blue" : `inline-grid shrink-0 place-items-center rounded-md border bg-paper transition-colors hover:bg-paper-2 ${compact ? "size-7" : "size-9"} ${tone === "danger" ? "border-red-200 text-red-700 hover:border-red-500" : "border-line text-blue hover:border-blue"}`}
         aria-label={label}
         title={label}
         aria-haspopup="dialog"
         onClick={() => dialog.current?.showModal()}
       >
-        <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        {trigger ?? <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           {icons[icon]}
-        </svg>
+        </svg>}
       </button>
       <dialog
         ref={dialog}
