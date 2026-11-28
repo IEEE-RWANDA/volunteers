@@ -249,59 +249,51 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
     return (
       <>
         {assigned.length ? (
-          <ul className="mt-2 space-y-2 text-sm text-ink-soft">
-            {assigned.map(member => {
-              const customBadges = badges.filter(badge => badge.email === member.email && badge.unitId === unitId);
-              const labels = new Set(accepted.filter(item => item.email === member.email).map(item => item.label));
-              if (leads.some(lead => lead.email === member.email && lead.unitId === unitId)) labels.add("Unit chair");
-              return (
-                <li key={member.email}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span>{member.name}</span>
-                    {customBadges.map(badge => (
-                      <span key={badge.id} className="inline-flex items-center gap-1 rounded-full bg-paper-2 py-0.5 ps-2 pe-1 text-xs font-semibold text-navy">
-                        <span><span aria-hidden="true">★ </span>{badge.label}</span>
-                        {manager && (
-                          <ActionModal label={`Edit ${badge.label}`} title="Edit role assignment" icon="edit" compact>
-                            <form action={updateUnitBadge} className="space-y-3">
-                              <input type="hidden" name="unitId" value={unitId} />
-                              <input type="hidden" name="badgeId" value={badge.id} />
-                              <label className="block text-sm font-semibold">Volunteer
-                                <select name="email" className="login-input" defaultValue={member.email} required>
-                                  {members.map(volunteer => <option key={volunteer.email} value={volunteer.email}>{volunteer.name} · {volunteer.email}</option>)}
-                                </select>
-                              </label>
-                              <label className="block text-sm font-semibold">Role title
-                                <input name="label" className="login-input" defaultValue={badge.label} maxLength={60} required autoFocus />
-                              </label>
-                              <button className="btn btn-primary" type="submit">Save role assignment</button>
-                            </form>
-                          </ActionModal>
-                        )}
-                      </span>
-                    ))}
-                    {[...labels].map(label => (
-                      <span key={label} className="rounded-full bg-paper-2 px-2 py-0.5 text-xs font-semibold text-navy"><span aria-hidden="true">★ </span>{label}</span>
-                    ))}
-                  </div>
-                  {manager && (
-                    <div className="mt-1">
-                      <ActionModal label={`Add role for ${member.name}`} title={`Add role for ${member.name}`} icon="plus" compact>
-                      <form action={giveUnitBadge} className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="unitId" value={unitId} />
-                        <input type="hidden" name="email" value={member.email} />
-                        <label className="min-w-0 grow text-xs font-semibold">Role title
-                          <input name="label" className="login-input" maxLength={60} required />
-                        </label>
-                        <button className="btn btn-primary text-xs" type="submit">Add role</button>
-                      </form>
-                      </ActionModal>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-3 scrollable-table" role="region" aria-label="Organization roles" tabIndex={0}>
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line bg-paper-2 text-navy"><tr><th scope="col" className="px-3 py-2">Role</th><th scope="col" className="px-3 py-2">Volunteer</th>{manager && <th scope="col" className="px-3 py-2"><span className="sr-only">Actions</span></th>}</tr></thead>
+              <tbody className="divide-y divide-line">
+                {assigned.flatMap(member => {
+                  const customBadges = badges.filter(badge => badge.email === member.email && badge.unitId === unitId);
+                  const labels = new Set(accepted.filter(item => item.email === member.email).map(item => item.label));
+                  if (leads.some(lead => lead.email === member.email && lead.unitId === unitId)) labels.add("Unit chair");
+                  const rows = [...customBadges.map(badge => ({ label: badge.label, badge })), ...[...labels].filter(label => !customBadges.some(badge => badge.label.toLowerCase() === label.toLowerCase())).map(label => ({ label, badge: undefined }))];
+                  if (!rows.length) rows.push({ label: "Volunteer", badge: undefined });
+                  return rows.map(({ label, badge }, index) => <tr key={`${member.email}-${badge?.id ?? label}`}>
+                    <td className="wrap-anywhere px-3 py-3 align-top font-semibold text-navy">{label}</td>
+                    <td className="wrap-anywhere px-3 py-3 align-top text-ink-soft">{member.name}</td>
+                    {manager && <td className="px-2 py-3 align-top"><div className="flex gap-1">
+                      {badge && <ActionModal label={`Edit ${badge.label}`} title="Edit role assignment" icon="edit" compact>
+                        <form action={updateUnitBadge} className="space-y-3">
+                          <input type="hidden" name="unitId" value={unitId} />
+                          <input type="hidden" name="badgeId" value={badge.id} />
+                          <label className="block text-sm font-semibold">Volunteer
+                            <select name="email" className="login-input" defaultValue={member.email} required>
+                              {members.map(volunteer => <option key={volunteer.email} value={volunteer.email}>{volunteer.name} · {volunteer.email}</option>)}
+                            </select>
+                          </label>
+                          <label className="block text-sm font-semibold">Role title
+                            <input name="label" className="login-input" defaultValue={badge.label} maxLength={60} required autoFocus />
+                          </label>
+                          <button className="btn btn-primary" type="submit">Save role assignment</button>
+                        </form>
+                      </ActionModal>}
+                      {index === 0 && <ActionModal label={`Add role for ${member.name}`} title={`Add role for ${member.name}`} icon="plus" compact>
+                        <form action={giveUnitBadge} className="space-y-3">
+                          <input type="hidden" name="unitId" value={unitId} />
+                          <input type="hidden" name="email" value={member.email} />
+                          <label className="block text-sm font-semibold">Role title
+                            <input name="label" className="login-input" maxLength={60} required />
+                          </label>
+                          <button className="btn btn-primary" type="submit">Add role</button>
+                        </form>
+                      </ActionModal>}
+                    </div></td>}
+                  </tr>);
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : <p className="mt-1 text-sm text-ink-soft">No volunteers assigned.</p>}
         {manager && unitRoles.length > 0 && (
           <div className="mt-3 border-t border-line pt-3">

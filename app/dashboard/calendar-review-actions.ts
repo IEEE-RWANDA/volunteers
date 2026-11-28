@@ -4,6 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getVolunteer } from "@/lib/session";
 import { setCalendarReviewer } from "@/lib/calendar-reviewers";
+import { reviewCalendarEvent } from "@/lib/event-calendar";
+
+export async function decideCalendarEvent(form: FormData) {
+  const actor = await getVolunteer();
+  const action = form.get("decision");
+  let status = "calendar-forbidden";
+  if (actor && (action === "approve" || action === "publish")) status = await reviewCalendarEvent(actor, String(form.get("eventId") ?? ""), action);
+  revalidatePath("/");
+  redirect(`/?section=team&tab=events&team=${status}#admin-events`);
+}
 
 export async function updateCalendarReviewer(form: FormData) {
   const actor = await getVolunteer();

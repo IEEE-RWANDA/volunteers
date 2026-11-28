@@ -2,13 +2,27 @@ import { volunteerEvents } from "@/lib/volunteer-store";
 import { volunteerUnits } from "@/lib/volunteer-units";
 import { accountRoster } from "@/lib/session";
 import { calendarReviewAccess, calendarReviewers } from "@/lib/calendar-reviewers";
-import { updateCalendarReviewer } from "./calendar-review-actions";
+import { decideCalendarEvent, updateCalendarReviewer } from "./calendar-review-actions";
+import { calendarConfigured, eventCalendarDecision } from "@/lib/event-calendar";
+
+const calendarMessages: Record<string, string> = {
+  "calendar-approved": "Event approved. It can now be published to the public calendar.",
+  "calendar-published": "Event published to the public calendar.",
+  "calendar-forbidden": "Only the Secretary and delegated calendar reviewers can approve or publish events.",
+  "calendar-details": "Complete the event title, description, venue, vTools link and valid start/end times before approval.",
+  "calendar-connection": "Connect the calendar owner's Google account before publishing. The event approval is saved.",
+  "calendar-approval-required": "Approve the current event details before publishing.",
+  "calendar-publish-error": "Calendar publication could not be confirmed. Retry publishing; the same event will not be duplicated.",
+  "calendar-save-error": "The change could not be saved. Check the current status and retry.",
+};
 
 export default async function AdminEvents({ viewer, status }: { viewer: string; status?: string }) {
   const permission = await calendarReviewAccess(viewer);
   const [reviewers, members] = permission.canManage ? await Promise.all([calendarReviewers(), accountRoster()]) : [[], []];
   const [events, units] = await Promise.all([volunteerEvents(), volunteerUnits()]);
   const unitNames = new Map(units.map(unit => [unit.id, unit.label]));
+  const decisions = new Map(await Promise.all(events.map(async event => [event.id, await eventCalendarDecision(event.id)] as const)));
+  const calendarMessage = status ? calendarMessages[status] : undefined;
 
   return (
     <section className="panel" aria-labelledby="admin-events">
@@ -21,6 +35,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
           <span className="rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">Calendar reviewer</span>
         )}
       </div>
+      {calendarMessage && <p role={status === "calendar-approved" || status === "calendar-published" ? "status" : "alert"} className="mt-3 text-sm font-semibold text-navy">{calendarMessage}</p>}
       {permission.canManage && <details className="mt-4 rounded-md border border-line p-4">
         <summary className="cursor-pointer font-semibold text-blue">Calendar reviewers</summary>
         {status === "calendar-reviewer-saved" && <p role="status" className="mt-3 text-sm text-blue">Calendar reviewers updated.</p>}
@@ -48,7 +63,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
       {events.length ? (
         <>
           {permission.canReview && (
-            <p className="mt-3 text-sm font-semibold text-ink-soft">Calendar publishing will be enabled after the calendar connection is configured.</p>
+            <p className="mt-3 text-sm text-ink-soft">Publishing makes the event title, description, schedule, venue and vTools link public.{!calendarConfigured() && " Calendar owner connection required before publishing."}</p>
           )}
           <div className="mt-4 scrollable-table" role="region" aria-labelledby="admin-events" tabIndex={0}>
             <table className="w-full min-w-[48rem] text-left text-sm">
@@ -62,11 +77,19 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {events.map(event => (
+                {events.map(event => {
+                  const decision = decisions.get(event.id);
+                  return (
                   <tr id={`activity-${event.id}`} className="scroll-mt-5 align-top target:bg-paper-2" key={event.id}>
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">{event.title}</th>
                     <td className="px-3 py-3">
-                      <span className="inline-block rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">Awaiting calendar decision</span>
+                      <span className="inline-block rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">{decision?.publishedAt ? "Published to calendar" : decision ? "Approved" : "Awaiting calendar decision"}</span>
+                      {decision?.calendarUrl && <a className="action-link mt-2 block text-sm" href={decision.calendarUrl} target="_blank" rel="noreferrer">View calendar event</a>}
+                      {permission.canReview && !decision?.publishedAt && <form action={decideCalendarEvent} className="mt-3 flex flex-wrap gap-2">
+                        <input type="hidden" name="eventId" value={event.id} />
+                        <button className="btn border border-line text-blue" name="decision" value="approve">{decision ? "Reapprove event" : "Approve event"}</button>
+                        {decision && <button className="btn btn-primary" name="decision" value="publish">Publish to calendar</button>}
+                      </form>}
                     </td>
                     <td className="px-3 py-3 text-ink-soft">
                       <time className="whitespace-nowrap" dateTime={event.date}>{event.date.replace("T", " ")}</time>
@@ -82,7 +105,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                       {event.vtools && <a className="action-link whitespace-nowrap" href={event.vtools} target="_blank" rel="noreferrer">vTools event</a>}
                     </td>
                   </tr>
-                ))}
+                );})}
               </tbody>
             </table>
           </div>
