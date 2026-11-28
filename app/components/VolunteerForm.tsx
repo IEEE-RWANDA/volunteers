@@ -93,7 +93,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   return (
     <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event/activity submission"}>
       <input type="hidden" name="kind" value={kind} />
-      {!funding && <section className="rounded-xl border border-line p-4"><h3 className="mb-4 font-semibold">Event budget</h3><EventBudgetFields key={budgetVersion} /></section>}
+      {!funding && <section className="rounded-xl border border-line p-4"><h3 className="mb-4 font-semibold">Event budget</h3><EventBudgetFields key={budgetVersion} totalOnly /></section>}
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
           {funding && <h3 className="font-display text-lg font-bold text-navy">Activity and funding details</h3>}
@@ -214,10 +214,6 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         {funding && (
           <section aria-labelledby="funding-documents" className="min-w-0 space-y-4 border-t border-line pt-6 @min-[440px]:flex @min-[440px]:flex-col @min-[440px]:border-t-0 @min-[440px]:pt-0">
             <h3 id="funding-documents" className="font-display text-lg font-bold text-navy">Documents and acknowledgement</h3>
-            <label className="block font-semibold">
-              vTools event link
-              <input type="url" className={field} value={activity?.vtools ?? ""} placeholder="From the selected event or activity" readOnly />
-            </label>
             <fieldset className="space-y-3">
               <legend className="sr-only">Required funding documents</legend>
               <label className="block font-semibold">

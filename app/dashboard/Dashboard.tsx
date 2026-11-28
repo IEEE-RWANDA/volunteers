@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getTeamAccess } from "@/lib/session";
 import { organizerOptions } from "@/lib/volunteer-roster";
 import { volunteerEvents, volunteerSubmissions } from "@/lib/volunteer-store";
+import VolunteerSectionTabs from "./VolunteerSectionTabs";
 import EventBudgetPlanner from "./EventBudgetPlanner";
 import type { EventBudget } from "@/lib/event-budget";
 import { readIntakeJson } from "@/lib/volunteer-store";
@@ -51,7 +52,7 @@ export default async function Dashboard({ email, params }: { email: string; para
   const volunteerTab = tab === "roles" || tab === "directory" || tab === "organizations" ? tab
     : unitStatus && !tab ? "organizations" : "profile";
   const reporting = current.id === "funding" && (tab === "reporting" || Boolean(request) || report === "saved");
-  const funding = current.id === "funding" && !reporting;
+  const funding = current.id === "funding";
   const assignedFunds = current.id === "funding" ? (await listedFunds()).filter(fund => fund.volunteerEmail === email) : [];
   const funds = funding ? await fundsForVolunteer(email) : [];
   const leadershipBlocks = funding ? await fundingLeadershipBlocks() : new Map<string, string | null>();
@@ -160,19 +161,23 @@ export default async function Dashboard({ email, params }: { email: string; para
             <header className="dashboard-section-header">
               <h1>{current.label}</h1>
             </header>
-            {current.id === "funding" && (
-              <nav aria-label="Funding and reporting" className="dashboard-nav mb-5">
-                <Link href="/?section=funding" aria-current={funding ? "page" : undefined}>Funding</Link>
-                <Link href="/?section=funding&tab=reporting" aria-current={reporting ? "page" : undefined}>Reporting</Link>
-              </nav>
-            )}
-            {current.id === "funding" && <VolunteerFundingSummary email={email} records={records} funds={assignedFunds} statuses={reportStatuses} />}
-            {reporting ? (
-              <>
-                <ReleasedFunds records={records} statuses={reportStatuses} />
-                <FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} />
-              </>
-            ) : current.id === "volunteers" ? (
+            {current.id === "funding" ? <VolunteerSectionTabs section="funding" initial={reporting ? "reporting" : "funding"} tabs={[
+              { id: "funding", label: "Funding request", content: (<section className="panel">
+                  <h2 id="funding-request" className="panel-title">Submit a funding request</h2>
+                  {fundingActivities.some(item => item.submittedBy === email && item.vtools) ? (
+                    <VolunteerForm key={initialFund ?? "funding"} kind="funding" contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds}
+                      activities={fundingActivities.flatMap(item => item.submittedBy === email && item.vtools ? [{ id: item.id, title: item.title, date: item.date.slice(0, 10), vtools: item.vtools,
+                        unitId: item.eventUnitId,
+                        fundingBlockedReason: item.eventUnitId && leadershipBlocks.has(item.eventUnitId) ? leadershipBlocks.get(item.eventUnitId) : unlinkedFundingActivity }] : [])} />
+                  ) : (
+                    <p className="mt-3 text-sm text-ink-soft">
+                      <Link href="/?section=events" className="action-link">Create an event or activity</Link> before requesting funding.
+                    </p>
+                  )}
+                </section>) },
+              { id: "summary", label: "Your funding summary", content: <VolunteerFundingSummary email={email} records={records} funds={assignedFunds} statuses={reportStatuses} /> },
+              { id: "reporting", label: "Reporting", content: <><ReleasedFunds records={records} statuses={reportStatuses} /><FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} /></> },
+            ]} /> : current.id === "volunteers" ? (
               <>
                 <nav aria-label="Volunteer sections" className="dashboard-nav mb-5">
                   {[
@@ -191,24 +196,9 @@ export default async function Dashboard({ email, params }: { email: string; para
                   ) : <VolunteerHours email={email} status={hours} profileStatus={profile} avatar={avatar} googleName={googleName} />}
               </>
             ) :
-              current.id === "team" && access ? <TeamView access={access} status={team} /> : funding ? (
-                <section className="panel">
-                  <h2 id="funding-request" className="panel-title">Submit a funding request</h2>
-                  {fundingActivities.some(item => item.submittedBy === email && item.vtools) ? (
-                    <VolunteerForm key={initialFund ?? "funding"} kind="funding" contactEmail={email} organizers={organizers} initialFund={initialFund} funds={funds}
-                      activities={fundingActivities.flatMap(item => item.submittedBy === email && item.vtools ? [{ id: item.id, title: item.title, date: item.date.slice(0, 10), vtools: item.vtools,
-                        unitId: item.eventUnitId,
-                        fundingBlockedReason: item.eventUnitId && leadershipBlocks.has(item.eventUnitId) ? leadershipBlocks.get(item.eventUnitId) : unlinkedFundingActivity }] : [])} />
-                  ) : (
-                    <p className="mt-3 text-sm text-ink-soft">
-                      <Link href="/?section=events" className="action-link">Create an event or activity</Link> before requesting funding.
-                    </p>
-                  )}
-                </section>
-              ) : (
-                <div className="space-y-5">
-                  {eventBudgets.length > 0 && <section className="panel"><h2 className="panel-title">Your event budgets</h2><p className="mt-2 text-sm text-ink-soft">Plan and update each activity’s budget in USD.</p><div className="mt-4 space-y-3">{eventBudgets.map(({ event, budget }) => <details key={event.id} className="rounded-xl border border-line p-4"><summary className="cursor-pointer font-semibold text-navy">{event.title}</summary><EventBudgetPlanner id={event.id} initial={budget ?? event.eventBudget} /></details>)}</div></section>}
-                  <section className="panel">
+              current.id === "team" && access ? <TeamView access={access} status={team} /> : (
+                <VolunteerSectionTabs section="events" initial="submission" tabs={[
+                  { id: "submission", label: "Event submission", content: <div className="space-y-5"><section className="panel">
                     <h2 className="panel-title">Event/activity submission</h2>
                     <VolunteerForm kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits.map(({ id, label }) => ({ id, label }))} />
                   </section>
@@ -216,8 +206,9 @@ export default async function Dashboard({ email, params }: { email: string; para
                     <h2 className="panel-title">Public calendar</h2>
                     <p className="my-3 text-ink-soft">Submissions go to IEEE Rwanda for review. Approved events and activities can be added to the public calendar.</p>
                     <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
-                  </aside>
-                </div>
+                  </aside></div> },
+                  { id: "budgets", label: "Budget planner", content: (<section className="panel"><h2 className="panel-title">Your event budgets</h2><p className="mt-2 text-sm text-ink-soft">Plan and update each activity’s budget in USD.</p><div className="mt-4 space-y-3">{eventBudgets.map(({ event, budget }) => <details key={event.id} className="rounded-xl border border-line p-4"><summary className="cursor-pointer font-semibold text-navy">{event.title}</summary><EventBudgetPlanner id={event.id} initial={budget ?? event.eventBudget} /></details>)}</div>{!eventBudgets.length && <p className="mt-4 text-sm text-ink-soft">Create an event or activity to start planning its budget.</p>}</section>) },
+                ]} />
             )}
           </>
         )}
