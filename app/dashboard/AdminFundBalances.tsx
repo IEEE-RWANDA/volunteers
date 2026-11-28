@@ -50,13 +50,19 @@ export default async function AdminFundBalances({ email, status }: { email: stri
                 <td className="whitespace-nowrap px-3 py-3 text-right">
                   {row.released > 0 ? <ActionModal icon="plus" label={`View releases for ${row.name}`} title="Fund releases" trigger={formatUsd(row.released)}>
                     <p className="mb-4 text-sm text-ink-soft">{row.name}</p>
-                    <ul className="divide-y divide-line">
-                      {details.map(detail => <li key={detail.id} className="py-3">
-                        <div className="flex justify-between gap-4 text-sm"><span className="min-w-0 whitespace-normal">{detail.title}</span><strong className="shrink-0">{formatUsd(detail.cents)}</strong></div>
-                        <p className="mt-1 text-xs text-ink-soft">{detail.date} · {detail.id.startsWith("payment-") ? `CB payment ${detail.id.slice(8)}` : "Portal release"}</p>
-                      </li>)}
-                      {unitemized !== 0 && <li className={`flex justify-between gap-4 py-3 text-sm ${unitemized < 0 ? "text-red-700" : ""}`}><span className="whitespace-normal">{unitemized > 0 ? "Released amount not yet itemized" : "Difference from ledger total — needs reconciliation"}</span><strong>{formatUsd(unitemized)}</strong></li>}
-                    </ul>
+                    <div className="scrollable-table" role="region" aria-label="Individual fund releases" tabIndex={0}>
+                      <table className="w-full text-left text-sm">
+                        <thead><tr><th scope="col" className="px-2 py-2">Release / activity</th><th scope="col" className="px-2 py-2">Date</th><th scope="col" className="px-2 py-2 text-right">Amount</th></tr></thead>
+                        <tbody className="divide-y divide-line">
+                          {details.map(detail => <tr key={detail.id} className="align-top">
+                            <th scope="row" className="px-2 py-3 font-normal">{detail.title}<p className="mt-1 text-xs text-ink-soft">{detail.id.startsWith("payment-") ? `CB payment ${detail.id.slice(8)}` : "Portal release"}</p></th>
+                            <td className="whitespace-nowrap px-2 py-3">{detail.date || "—"}</td>
+                            <td className="whitespace-nowrap px-2 py-3 text-right font-semibold">{formatUsd(detail.cents)}</td>
+                          </tr>)}
+                          {unitemized !== 0 && <tr className={unitemized < 0 ? "text-red-700" : ""}><th scope="row" colSpan={2} className="px-2 py-3 font-normal">{unitemized > 0 ? "Released amount not yet itemized" : "Difference from ledger total — needs reconciliation"}</th><td className="whitespace-nowrap px-2 py-3 text-right font-semibold">{formatUsd(unitemized)}</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
                     <p className="mt-4 flex justify-between border-t border-line pt-3 font-semibold"><span>Total released</span><span>{formatUsd(row.released)}</span></p>
                   </ActionModal> : formatUsd(row.released)}
                 </td>
