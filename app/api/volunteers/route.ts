@@ -8,7 +8,7 @@ import { volunteerUnits } from "@/lib/volunteer-units";
 import { fundingLeadershipBlocks, unlinkedFundingActivity } from "@/lib/funding-leadership";
 import { organizerDirectory } from "@/lib/volunteer-roster";
 import { getVolunteer } from "@/lib/session";
-import { ownVolunteerEvent, removeIntakeFiles, saveIntakeFile } from "@/lib/volunteer-store";
+import { ownVolunteerEvent, removeIntakeFiles, saveEventRevision, saveIntakeFile } from "@/lib/volunteer-store";
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
@@ -128,6 +128,12 @@ export async function POST(request: Request) {
   const kind = field("kind");
   if (kind === "funding-report") return submitFundingReport(form, volunteer);
   if (kind !== "event" && kind !== "funding") return bad("Select a submission type.");
+  const editId = field("eventId");
+  if (editId && kind !== "event") return bad("Only event submissions can be edited here.");
+  const editing = editId ? await ownVolunteerEvent(editId, volunteer) : null;
+  if (editId && !editing) return bad("Event not found or you are not its lead.", 404);
+  const baseRevision = Number(field("baseRevision"));
+  if (editing && (!/^\d+$/.test(field("baseRevision")) || !Number.isSafeInteger(baseRevision) || baseRevision !== (editing.revision ?? 0))) return bad("This event was updated elsewhere. Reload it before saving again.", 409);
   const activity = kind === "funding" ? await ownVolunteerEvent(field("fundingEventId"), volunteer) : null;
   if (kind === "funding" && !activity) return bad("Select an event or activity you created before requesting funds.");
   if (activity) {
@@ -232,9 +238,18 @@ export async function POST(request: Request) {
   const id = randomUUID();
   const record: Submission = {
     id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools, intendedUse,
-    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, attachmentLabels: uploads.map(upload => upload.label), receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, attachmentLabels: uploads.map(upload => upload.label), receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
+  if (editing) {
+    try {
+      const updated = { ...editing, title, email, committee, details, date, end, location, organizers, vtools, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: record.vtoolsAcknowledgedAt };
+      if (!await saveEventRevision(updated, baseRevision)) return bad("This event was updated elsewhere. Reload it before saving again.", 409);
+      return Response.json({ id: editing.id, revision: baseRevision + 1 }, { status: 200 });
+    } catch {
+      return bad("Your event changes could not be saved. Please try again.", 503);
+    }
+  }
   const saved: string[] = [];
   try {
     for (const [index, { bytes }] of uploads.entries()) {

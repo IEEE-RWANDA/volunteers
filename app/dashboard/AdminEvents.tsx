@@ -3,12 +3,12 @@ import { volunteerUnits } from "@/lib/volunteer-units";
 import { accountRoster } from "@/lib/session";
 import { calendarReviewAccess, calendarReviewers } from "@/lib/calendar-reviewers";
 import { updateCalendarReviewer } from "./calendar-review-actions";
-import { calendarConfigured, eventCalendarDecision } from "@/lib/event-calendar";
+import { calendarConfigured, calendarEventState, eventCalendarDecision } from "@/lib/event-calendar";
 import ActionModal from "./ActionModal";
 import CalendarEventActions from "./CalendarEventActions";
 
 const calendarMessages: Record<string, string> = {
-  "calendar-approved": "Event approved. It can now be published to the public calendar.",
+  "calendar-approved": "Event approved for the IEEE Rwanda Events page. It can now be published to the public calendar.",
   "calendar-published": "Event published to the public calendar.",
   "calendar-forbidden": "Only the Secretary and delegated calendar reviewers can approve or publish events.",
   "calendar-details": "Complete the event title, description, venue, vTools link and valid start/end times before approval.",
@@ -65,7 +65,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
       {events.length ? (
         <>
           {permission.canReview && (
-            <p className="mt-3 text-sm text-ink-soft">Publishing makes the event title, description, schedule, venue and vTools link public.{!calendarConfigured() && " Calendar owner connection required before publishing."}</p>
+            <p className="mt-3 text-sm text-ink-soft">Approval makes the event title, description, schedule, venue and vTools link visible on the IEEE Rwanda Events page. Publishing also adds or updates the public calendar.{!calendarConfigured() && " Calendar owner connection required before publishing."}</p>
           )}
           <div className="mt-4 scrollable-table" role="region" aria-labelledby="admin-events" tabIndex={0}>
             <table className="w-full min-w-[48rem] text-left text-sm">
@@ -82,12 +82,14 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
               <tbody className="divide-y divide-line">
                 {events.map(event => {
                   const decision = decisions.get(event.id);
+                  const state = calendarEventState(event, decision);
                   return (
                   <tr id={`activity-${event.id}`} className="scroll-mt-5 align-top target:bg-paper-2" key={event.id}>
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
                       <ActionModal label={`View ${event.title}`} title={event.title} icon="role" trigger={<span>{event.title}</span>}>
                         <div className="space-y-4 text-sm font-normal">
                           <div><h3 className="font-semibold text-navy">Description</h3><p className="mt-1 whitespace-pre-wrap wrap-anywhere text-ink-soft">{event.details || "Not provided"}</p></div>
+                          {state.updating && !state.published && <p className="rounded-md bg-amber-50 p-3 text-amber-900">These are the revised details. The public calendar keeps the previous published version until this update is approved and published.</p>}
                           <div className="overflow-hidden rounded-lg border border-line">
                             <table className="w-full table-fixed text-left text-sm" aria-label="Submitted event details">
                               <thead className="bg-paper-2 text-navy"><tr><th scope="col" className="w-[38%] px-3 py-2">Field</th><th scope="col" className="px-3 py-2">Details</th></tr></thead>
@@ -104,6 +106,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                                   { label: "vTools", value: event.vtools ? <a className="action-link" href={event.vtools} target="_blank" rel="noreferrer">Open vTools event</a> : "Not provided" },
                                   { label: "vTools acknowledgement", value: event.vtoolsAcknowledgedAt ? "IEEE Rwanda collaborator and contact email confirmed." : "Not recorded" },
                                   { label: "Submitted (CAT)", value: new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Kigali" }).format(new Date(event.receivedAt)) },
+                                  { label: "Revision", value: event.revision ?? 0 },
                                 ].map(row => <tr key={row.label}><th scope="row" className="wrap-anywhere px-3 py-3 align-top font-semibold text-navy">{row.label}</th><td className="whitespace-pre-wrap wrap-anywhere px-3 py-3 align-top text-ink-soft">{row.value}</td></tr>)}
                               </tbody>
                             </table>
@@ -113,12 +116,12 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                     </th>
                     <td className="px-3 py-3">
                       <div className="flex min-w-32 flex-col items-start gap-2.5">
-                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${decision?.publishedAt ? "bg-emerald-50 text-emerald-800" : decision ? "bg-sky-50 text-sky-800" : "bg-amber-50 text-amber-800"}`}>
+                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${state.published ? "bg-emerald-50 text-emerald-800" : state.approved ? "bg-sky-50 text-sky-800" : "bg-amber-50 text-amber-800"}`}>
                           <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-                          {decision?.publishedAt ? "Published" : decision ? "Approved" : "Needs review"}
+                          {state.published ? "Published" : state.approved ? state.updating ? "Update approved" : "Approved" : state.updating ? "Changes need review" : "Needs review"}
                         </span>
                         {decision?.calendarUrl && <a className="action-link inline-flex items-center gap-1 text-xs" href={decision.calendarUrl} target="_blank" rel="noreferrer">View in calendar <span aria-hidden="true">↗</span></a>}
-                        {permission.canReview && !decision?.publishedAt && <CalendarEventActions eventId={event.id} approved={Boolean(decision)} />}
+                        {permission.canReview && !state.published && <CalendarEventActions eventId={event.id} approved={state.approved} updating={state.updating} />}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-ink-soft">

@@ -20,6 +20,7 @@ import VolunteerUnits from "./VolunteerUnits";
 import { roster } from "@/lib/volunteer-roster";
 import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
+import OwnEvents from "./OwnEvents";
 import AdminEvents from "./AdminEvents";
 import { calendarReviewAccess } from "@/lib/calendar-reviewers";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
@@ -35,7 +36,7 @@ const baseNavigation = [
   { id: "volunteers", label: "Volunteers", href: "/?section=volunteers" },
 ] as const;
 
-export type DashboardParams = { section?: string; hours?: string; profile?: string; unitStatus?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string; q?: string; role?: string; roleView?: string; group?: string };
+export type DashboardParams = { section?: string; edit?: string; eventSaved?: string; hours?: string; profile?: string; unitStatus?: string; team?: string; report?: string; request?: string; fund?: string; tab?: string; q?: string; role?: string; roleView?: string; group?: string };
 
 export default async function Dashboard({ email, params }: { email: string; params: DashboardParams }) {
   const { section, hours, profile, unitStatus, team, report, request, fund, tab } = params;
@@ -197,15 +198,7 @@ export default async function Dashboard({ email, params }: { email: string; para
             ) :
               current.id === "team" && calendarAccess.canReview && access?.role !== "admin" ? <AdminEvents viewer={email} status={team} /> :
               current.id === "team" && access ? <TeamView access={access} status={team} /> : (
-                <div className="space-y-5"><section className="panel">
-                    <h2 className="panel-title">Event/activity submission</h2>
-                    <VolunteerForm kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits.map(({ id, label }) => ({ id, label }))} />
-                  </section>
-                  <aside className="panel">
-                    <h2 className="panel-title">Public calendar</h2>
-                    <p className="my-3 text-ink-soft">Submissions go to IEEE Rwanda for review. Approved events and activities can be added to the public calendar.</p>
-                    <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
-                  </aside></div>
+                <OwnEvents email={email} editId={params.edit} saved={params.eventSaved} organizers={organizers} eventUnits={eventUnits.map(({ id, label }) => ({ id, label }))} />
             )}
           </>
         )}

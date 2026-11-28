@@ -8,23 +8,23 @@ import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import type { FundBalance } from "@/lib/listed-funds";
 import RequestPicker from "./RequestPicker";
 import { useRouter } from "next/navigation";
-import { attachmentLimit, fundingRequestAttachmentCount, type OrganizerOption } from "@/lib/volunteer-intake";
+import { attachmentLimit, fundingRequestAttachmentCount, type OrganizerOption, type Submission } from "@/lib/volunteer-intake";
 
 const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper px-3 py-2.5 font-normal text-ink focus:border-blue focus:outline-2 focus:outline-blue/30";
 
-export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; unitId?: string; fundingBlockedReason?: string | null }[] }) {
+export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [], editing }: { kind: "event" | "funding"; editing?: { record: Submission; committeeIds: string[]; volunteerIds: string[] }; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; unitId?: string; fundingBlockedReason?: string | null }[] }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
-  const [organizationId, setOrganizationId] = useState("");
-  const [committeeSelection, setCommitteeSelection] = useState<string[]>([]);
-  const [selection, setSelection] = useState<string[]>([]);
+  const [organizationId, setOrganizationId] = useState(editing?.record.eventUnitId ?? "");
+  const [committeeSelection, setCommitteeSelection] = useState<string[]>(editing?.committeeIds ?? []);
+  const [selection, setSelection] = useState<string[]>(editing?.volunteerIds ?? []);
   const [selectedFunds, setSelectedFunds] = useState<string[]>(initialFund ? [initialFund] : []);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
   const previousFundAmounts = useRef<Record<string, string>>({});
   const [activityId, setActivityId] = useState("");
-  const draft = useFormDraft(draftKey(contactEmail, kind), formRef,
+  const draft = useFormDraft(draftKey(contactEmail, editing ? `event:${editing.record.id}:${editing.record.revision ?? 0}` : kind), formRef,
     () => ({ selection, committeeSelection, selectedFunds, fundAmounts, activityId, organizationId }), saved => {
       const state = saved.state as { selection?: string[]; committeeSelection?: string[]; selectedFunds?: string[]; fundAmounts?: Record<string, string>; activityId?: string; organizationId?: string };
       setOrganizationId(eventUnits.some(unit => unit.id === state.organizationId) ? state.organizationId! : "");
@@ -93,6 +93,11 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         return;
       }
       await draft.clear();
+      if (editing) {
+        router.push("/?section=events&eventSaved=" + editing.record.id);
+        router.refresh();
+        return;
+      }
       form.reset();
       setActivityId("");
       setSelection([]);
@@ -114,6 +119,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
       {(draft.status.includes("could not") || draft.status.includes("unavailable")) && <p role="alert" className="text-sm text-red-700">{draft.status}</p>}
       <fieldset disabled={!draft.ready} className="contents">
       <input type="hidden" name="kind" value={kind} />
+      {editing && <><input type="hidden" name="eventId" value={editing.record.id} /><input type="hidden" name="baseRevision" value={editing.record.revision ?? 0} /><p className="rounded-md bg-paper-2 p-3 text-ink-soft">Changes need calendar review. The public calendar keeps the last published version until your update is approved and published.</p></>}
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
           {funding && <h3 className="font-display text-lg font-bold text-navy">Activity and funding details</h3>}
@@ -133,7 +139,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           ) : (
             <label className="block font-semibold">
               Event or activity title
-              <input name="title" className={field} maxLength={150} required />
+              <input name="title" defaultValue={editing?.record.title} className={field} maxLength={150} required />
             </label>
           )}
           <div className={`grid gap-4 ${funding ? "@min-[800px]:grid-cols-2" : "sm:grid-cols-2"}`}>
@@ -148,18 +154,18 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             )}
             <label className="block min-w-0 font-semibold">
               {funding ? "Lead volunteer email" : "Contact email"}
-              <input name="email" type="email" defaultValue={contactEmail} className={field} maxLength={254} required />
+              <input name="email" type="email" defaultValue={editing?.record.email ?? contactEmail} className={field} maxLength={254} required />
             </label>
             {!funding && (
               <label className="block min-w-0 font-semibold">
                 Starts (Kigali time)
-                <input name="date" type="datetime-local" className={field} required />
+                <input name="date" defaultValue={editing?.record.date} type="datetime-local" className={field} required />
               </label>
             )}
             {!funding && (
               <label className="block min-w-0 font-semibold">
                 Ends (Kigali time)
-                <input name="end" type="datetime-local" className={field} required />
+                <input name="end" defaultValue={editing?.record.end} type="datetime-local" className={field} required />
               </label>
             )}
           </div>
@@ -202,11 +208,11 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             <>
               <label className="block font-semibold">
                 Location
-                <input name="location" className={field} maxLength={250} required />
+                <input name="location" defaultValue={editing?.record.location} className={field} maxLength={250} required />
               </label>
               <label className="block font-semibold">
                 vTools event link
-                <input name="vtools" type="url" className={field} maxLength={1000} required />
+                <input name="vtools" defaultValue={editing?.record.vtools} type="url" className={field} maxLength={1000} required />
               </label>
             </>
           )}
@@ -216,7 +222,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           </label>}
           {!funding && <label className="block font-semibold">
             Event or activity description
-            <textarea name="details" rows={4} className={field} maxLength={4000} required />
+            <textarea name="details" defaultValue={editing?.record.details} rows={4} className={field} maxLength={4000} required />
           </label>}
         </div>
         {funding && (
@@ -262,13 +268,13 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
       </div>
       {!funding && (
         <label className="flex items-start gap-3 rounded-md border border-line bg-paper-2 p-3">
-          <input type="checkbox" name="acknowledgeVtools" value="yes" required className="mt-0.5 size-4 shrink-0 accent-blue" />
+          <input type="checkbox" name="acknowledgeVtools" value="yes" defaultChecked={Boolean(editing?.record.vtoolsAcknowledgedAt)} required className="mt-0.5 size-4 shrink-0 accent-blue" />
           <span>I have added IEEE Rwanda as a collaborator in vTools and set <strong>gentille.uwera@ieee.org</strong> as the contact email. I understand that Gentille Uwera will be contacted during funding clearance to confirm the collaborator and contact email in vTools.</span>
         </label>
       )}
       <div className="flex justify-center py-6">
         <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!activity || Boolean(activity.fundingBlockedReason) || !organizers.length || !fundOptions.length))}>
-          {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event or activity"}
+          {pending ? editing ? "Saving changes…" : "Submitting…" : editing ? "Save event changes" : funding ? "Submit funding request" : "Submit event or activity"}
         </button>
       </div>
       {result.error && <p role="alert" className="font-semibold text-red-700">{result.error}</p>}

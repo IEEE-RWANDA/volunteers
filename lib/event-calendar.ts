@@ -4,7 +4,8 @@ import { readIntakeJson, saveIntakeFile, submissionIdPattern, volunteerEvents } 
 import type { Submission } from "./volunteer-intake";
 
 export const publicCalendarId = "c641c957c33ea9aff8bf76e246e6cd6228a835f2d015ec29d7cf92ff55eb7f60@group.calendar.google.com";
-export type CalendarDecision = { approvedBy: string; approvedAt: string; fingerprint: string; publishedBy?: string; publishedAt?: string; calendarEventId?: string; calendarUrl?: string };
+export type PublicEvent = { id: string; title: string; description: string; startsAt: string; endsAt: string; location: string; url: string };
+export type CalendarDecision = { approvedBy: string; approvedAt: string; fingerprint: string; publicEvent?: PublicEvent; publishedFingerprint?: string; publishedBy?: string; publishedAt?: string; calendarEventId?: string; calendarUrl?: string };
 const pathFor = (id: string) => `event-calendar-decisions/${id}.json`;
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -31,7 +32,7 @@ export function calendarEventPayload(event: Submission) {
     location: event.location,
     description: `${event.details}\n\nvTools event: ${event.vtools}`,
     start, end,
-    extendedProperties: { private: { portalActivityId: event.id } },
+    extendedProperties: { private: { portalActivityId: event.id, ...(event.revision ? { portalRevision: String(event.revision) } : {}) } },
   };
 }
 
@@ -41,10 +42,43 @@ export async function eventCalendarDecision(id: string) {
     readIntakeJson<CalendarDecision>(pathFor(id)),
     readIntakeJson<CalendarDecision>(`event-calendar-publications/${id}.json`),
   ]);
-  return publication ?? approval;
+  return publication ? { ...publication, ...approval, publishedAt: publication.publishedAt, publishedBy: publication.publishedBy, calendarEventId: publication.calendarEventId, calendarUrl: publication.calendarUrl, publishedFingerprint: publication.fingerprint } : approval;
 }
 
-async function publishToGoogle(payload: ReturnType<typeof calendarEventPayload>) {
+export function calendarEventState(event: Submission, decision: CalendarDecision | null | undefined) {
+  let fingerprint = "";
+  try { fingerprint = digest(JSON.stringify(calendarEventPayload(event))); } catch { /* Incomplete imported activities still need review. */ }
+  const published = Boolean(fingerprint && decision?.publishedFingerprint === fingerprint);
+  return { approved: Boolean(fingerprint && decision?.fingerprint === fingerprint), published, updating: Boolean(decision?.publishedAt), needsReview: !fingerprint || decision?.fingerprint !== fingerprint };
+}
+
+function publicEventDetails(event: Submission): PublicEvent {
+  calendarEventPayload(event);
+  return { id: event.id, title: event.title, description: event.details, startsAt: event.date, endsAt: event.end!, location: event.location!, url: event.vtools! };
+}
+
+export async function approvedPublicEvents() {
+  const events = await volunteerEvents();
+  const approved = await Promise.all(events.map(async event => {
+    const decision = await eventCalendarDecision(event.id);
+    if (!decision) return null;
+    if (decision.publicEvent) {
+      const { id, title, description, startsAt, endsAt, location, url } = decision.publicEvent;
+      return { id, title, description, startsAt, endsAt, location, url };
+    }
+    // Legacy approvals have no snapshot; only expose a version whose reviewed fingerprint still matches.
+    for (const candidate of [event, await readIntakeJson<Submission>(`records/${event.id}.json`)]) {
+      if (!candidate) continue;
+      try {
+        if (digest(JSON.stringify(calendarEventPayload(candidate))) === decision.fingerprint) return publicEventDetails(candidate);
+      } catch { /* Incomplete imported events cannot be published. */ }
+    }
+    return null;
+  }));
+  return approved.filter(event => event !== null).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+}
+
+async function publishToGoogle(payload: ReturnType<typeof calendarEventPayload>, updating: boolean) {
   if (!calendarConfigured()) throw new Error("calendar-connection");
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", cache: "no-store", signal: AbortSignal.timeout(10000),
@@ -55,12 +89,26 @@ async function publishToGoogle(payload: ReturnType<typeof calendarEventPayload>)
   if (typeof token.access_token !== "string" || !token.access_token) throw new Error("calendar-connection");
   const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(publicCalendarId)}/events`;
   const headers = { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json" };
-  let response = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), cache: "no-store", signal: AbortSignal.timeout(15000) });
-  if (response.status === 409) {
+  let response = updating ? await fetch(`${url}/${payload.id}`, { headers, cache: "no-store", signal: AbortSignal.timeout(10000) }) : await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), cache: "no-store", signal: AbortSignal.timeout(15000) });
+  let existing = updating;
+  if (!updating && response.status === 409) {
     response = await fetch(`${url}/${payload.id}`, { headers, cache: "no-store", signal: AbortSignal.timeout(10000) });
+    existing = true;
   }
   if (!response.ok) throw new Error("calendar-publish-error");
-  const result = await response.json();
+  let result = await response.json();
+  if (existing && result.id === payload.id && result.extendedProperties?.private?.portalActivityId === payload.extendedProperties.private.portalActivityId && result.status !== "cancelled") {
+    const incomingRevision = Number(payload.extendedProperties.private.portalRevision ?? 0);
+    const remoteRevision = Number(result.extendedProperties?.private?.portalRevision ?? 0);
+    if (remoteRevision > incomingRevision) throw new Error("calendar-approval-required");
+    if (remoteRevision < incomingRevision) {
+      if (typeof result.etag !== "string") throw new Error("calendar-publish-error");
+      const { id: eventId, ...changes } = payload;
+      response = await fetch(`${url}/${eventId}`, { method: "PATCH", headers: { ...headers, "If-Match": result.etag }, body: JSON.stringify(changes), cache: "no-store", signal: AbortSignal.timeout(15000) });
+      if (!response.ok) throw new Error("calendar-publish-error");
+      result = await response.json();
+    }
+  }
   if (result.id !== payload.id || result.extendedProperties?.private?.portalActivityId !== payload.extendedProperties.private.portalActivityId || result.status === "cancelled" || result.summary !== payload.summary || result.description !== payload.description || result.location !== payload.location || Date.parse(result.start?.dateTime) !== Date.parse(payload.start.dateTime) || Date.parse(result.end?.dateTime) !== Date.parse(payload.end.dateTime)) throw new Error("calendar-publish-error");
   return { id: payload.id, url: `https://calendar.google.com/calendar/event?eid=${Buffer.from(payload.id + " " + publicCalendarId).toString("base64url")}` };
 }
@@ -74,16 +122,18 @@ export async function reviewCalendarEvent(actor: string, id: string, action: "ap
     const payload = calendarEventPayload(event);
     const fingerprint = digest(JSON.stringify(payload));
     const previous = await eventCalendarDecision(id);
-    if (previous?.publishedAt) return "calendar-published";
+    if (previous?.publishedFingerprint === fingerprint) return "calendar-published";
     if (action === "approve") {
-      await saveIntakeFile(pathFor(id), JSON.stringify({ approvedBy: actor, approvedAt: new Date().toISOString(), fingerprint }), true);
+      await saveIntakeFile(pathFor(id), JSON.stringify({ approvedBy: actor, approvedAt: new Date().toISOString(), fingerprint, publicEvent: publicEventDetails(event) }), true);
       return "calendar-approved";
     }
     if (!previous || previous.fingerprint !== fingerprint) return "calendar-approval-required";
-    const published = await publishToGoogle(payload);
+    const latest = (await volunteerEvents()).find(item => item.id === id);
+    if (!latest || digest(JSON.stringify(calendarEventPayload(latest))) !== fingerprint) return "calendar-approval-required";
+    const published = await publishToGoogle(payload, Boolean(previous.publishedAt));
     await saveIntakeFile(`event-calendar-publications/${id}.json`, JSON.stringify({ ...previous, publishedBy: actor, publishedAt: new Date().toISOString(), calendarEventId: published.id, calendarUrl: published.url }), true);
     return "calendar-published";
   } catch (error) {
-    return error instanceof Error && ["calendar-details", "calendar-connection", "calendar-publish-error"].includes(error.message) ? error.message : "calendar-save-error";
+    return error instanceof Error && ["calendar-details", "calendar-connection", "calendar-publish-error", "calendar-approval-required"].includes(error.message) ? error.message : "calendar-save-error";
   }
 }

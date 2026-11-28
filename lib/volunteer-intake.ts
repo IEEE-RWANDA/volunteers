@@ -29,6 +29,9 @@ export type Submission = {
   eventBudget?: import("./event-budget").EventBudget;
   fundingEventId?: string;
   eventVolunteerEmails?: string[];
+  eventCommitteeEmails?: string[];
+  revision?: number;
+  editedAt?: string;
   details: string;
   intendedUse?: string;
   date: string;

@@ -168,19 +168,41 @@ async function submissions() {
 }
 
 export async function volunteerEvents() {
-  return (await submissions()).filter(record => record.kind === "event");
+  return Promise.all((await submissions()).filter(record => record.kind === "event").map(latestEventRevision));
+}
+
+async function latestEventRevision(event: Submission) {
+  const paths = await listIntakeRecords(`event-revisions/${event.id}`);
+  const revision = paths.reduce((latest, path) => Math.max(latest, Number(path.split("/").at(-1)?.slice(0, -5)) || 0), 0);
+  if (!revision) return event;
+  const saved = await readIntakeJson<Submission>(`event-revisions/${event.id}/${revision}.json`);
+  if (!saved) throw new Error("Event revision could not be read");
+  return saved;
+}
+
+export async function saveEventRevision(event: Submission, baseRevision: number) {
+  const current = await ownVolunteerEvent(event.id, event.submittedBy);
+  if (!current || (current.revision ?? 0) !== baseRevision) return false;
+  const path = `event-revisions/${event.id}/${baseRevision + 1}.json`;
+  try {
+    await saveIntakeFile(path, JSON.stringify({ ...event, revision: baseRevision + 1, editedAt: new Date().toISOString() }));
+    return true;
+  } catch (error) {
+    if (await readIntakeJson(path)) return false;
+    throw error;
+  }
 }
 
 export async function ownVolunteerEvent(id: string, email: string) {
   if (!submissionIdPattern.test(id)) return null;
   const record = await readIntakeJson<Submission>(`records/${id}.json`);
-  return record?.kind === "event" && record.submittedBy === email ? record : null;
+  return record?.kind === "event" && record.submittedBy === email ? latestEventRevision(record) : null;
 }
 
 export async function volunteerSubmissions(email: string, releases?: AllocatedRelease[]) {
   const records = (await submissions()).filter(record => record.submittedBy === email);
   const ledger = releases ?? (records.some(record => record.kind === "funding") ? await allocatedReleases() : []);
-  return Promise.all(records.map(record => withFundingStatus(record, ledger)));
+  return Promise.all(records.map(record => record.kind === "event" ? latestEventRevision(record) : withFundingStatus(record, ledger)));
 }
 
 export async function allFundingRequests() {
