@@ -28,9 +28,8 @@ export default async function AdminFundBalances({ email, status }: { email: stri
       {status === "fund-assignment-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Select an existing volunteer and unit for a fund with an available balance.</p>}
       {status === "fund-assignment-write" && <p role="alert" className="mt-2 text-sm text-red-700">The assignment could not be saved. Refresh and check the current assignment before retrying.</p>}
       <FundBalanceTabs balances={<>
-      <p className="mt-2 text-sm text-ink-soft">Imported funding plus new portal funds and releases. All amounts are in USD.</p>
       {warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm text-red-700">{warning}</p>)}
-      <div className="mt-4 overflow-x-auto" role="region" aria-label="Fund balances table" tabIndex={0}>
+      <div className="mt-4 scrollable-table" role="region" aria-label="Fund balances table" tabIndex={0}>
         <table className="w-full min-w-[60rem] text-left text-sm">
           <thead className="border-b border-line bg-paper-2 text-navy">
             <tr>

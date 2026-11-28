@@ -62,3 +62,7 @@
   .dashboard-workflows { grid-template-columns: minmax(0, 1fr); gap: .65rem; }
   .workflow { min-height: 5.5rem; }
 }
+
+/* Keep column labels visible within both vertical and horizontal table scrolling. */
+.scrollable-table { overflow: auto; max-height: min(65dvh, calc(100dvh - var(--dashboard-header-height, 0px) - var(--admin-tabs-height, 0px) - 2rem)); }
+.scrollable-table thead { position: sticky; top: 0; z-index: 10; background: var(--color-paper-2); box-shadow: 0 1px var(--color-line); }

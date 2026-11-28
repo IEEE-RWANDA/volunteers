@@ -63,7 +63,7 @@ export default async function AdminFundingRequests({ status, officerTitle }: { s
         )}
       </section>
       {requests.length ? (
-        <div className="mt-4 overflow-x-auto" role="region" aria-labelledby="admin-funding" tabIndex={0}>
+        <div className="mt-4 scrollable-table" role="region" aria-labelledby="admin-funding" tabIndex={0}>
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead className="border-b border-line bg-paper-2 text-navy">
               <tr>

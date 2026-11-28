@@ -23,7 +23,7 @@ export default async function AdminEvents({ viewer }: { viewer: string }) {
           {viewer === calendarReviewer && (
             <p className="mt-3 text-sm font-semibold text-ink-soft">Calendar publishing will be enabled after the calendar connection is configured.</p>
           )}
-          <div className="mt-4 overflow-x-auto" role="region" aria-labelledby="admin-events" tabIndex={0}>
+          <div className="mt-4 scrollable-table" role="region" aria-labelledby="admin-events" tabIndex={0}>
             <table className="w-full min-w-[48rem] text-left text-sm">
               <thead className="border-b border-line bg-paper-2 text-navy">
                 <tr>

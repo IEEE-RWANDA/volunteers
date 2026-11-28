@@ -21,7 +21,7 @@ export default function FundReleaseHistory({ rows }: { rows: FundReleaseRow[] })
           </select>
         </label>
       </div>
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 scrollable-table" role="region" aria-label="Release history table" tabIndex={0}>
         <table className="w-full min-w-[40rem] text-left text-sm">
           <thead className="border-b border-line bg-paper-2">
             <tr>{["Activity / transaction", "Date", "Released", "Released by", "Reported"].map(label => <th key={label} scope="col" className="px-3 py-2">{label}</th>)}</tr>

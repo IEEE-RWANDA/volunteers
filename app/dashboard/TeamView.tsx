@@ -116,7 +116,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
               <h2 id="admin-reports" className="panel-title">Funding reports</h2>
               {reviewMessage && <p role="status" className="mt-2 text-sm font-semibold text-blue">{reviewMessage}</p>}
               {reports.length ? (
-                <div className="mt-4 overflow-x-auto" role="region" aria-label="Funding reports table" tabIndex={0}>
+                <div className="mt-4 scrollable-table" role="region" aria-label="Funding reports table" tabIndex={0}>
                   <table className="w-full min-w-[44rem] text-left text-sm">
                     <thead className="border-b border-line bg-paper-2 text-navy">
                       <tr>
