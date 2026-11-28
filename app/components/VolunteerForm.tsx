@@ -22,6 +22,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   const [selection, setSelection] = useState<string[]>([]);
   const [selectedFunds, setSelectedFunds] = useState<string[]>(initialFund ? [initialFund] : []);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
+  const previousFundAmounts = useRef<Record<string, string>>({});
   const [activityId, setActivityId] = useState("");
   const draft = useFormDraft(draftKey(contactEmail, kind), formRef,
     () => ({ selection, committeeSelection, selectedFunds, fundAmounts, activityId, organizationId }), saved => {
@@ -76,7 +77,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         data.set(`fundAmount-${id}`, amount);
       }
     }
-    const files = ["budget", "invoice", "approvalEmail", "eventDescription", "eventPoster"].flatMap(key => data.getAll(key)).filter((item): item is File => item instanceof File && item.size > 0);
+    const files = ["budget", "invoice", "approvalEmail", "eventPoster"].flatMap(key => data.getAll(key)).filter((item): item is File => item instanceof File && item.size > 0);
     if (files.length > fundingRequestAttachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
       setResult({ error: "Attach up to three invoices. All uploads must total 4 MB or less." });
       return;
@@ -174,6 +175,8 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           {funding && (
             <RequestPicker
               name="fund" label="Expected funding sources" placeholder="Select funds" searchLabel="Search funds"
+              onOpen={() => { previousFundAmounts.current = { ...fundAmounts }; }}
+              onCancel={() => { setFundAmounts(previousFundAmounts.current); draft.changed(); }}
               emptyMessage="No funds are available to request." options={fundOptions}
               selectedIds={selectedFunds} onChange={setSelectedFunds} field={field}
               summary={fund => {
@@ -207,10 +210,14 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
               </label>
             </>
           )}
-          <label className={`block font-semibold ${funding ? "@min-[440px]:flex @min-[440px]:flex-1 @min-[440px]:flex-col" : ""}`}>
-            {funding ? "Activity purpose and intended use of funds" : "Event or activity description"}
-            <textarea name="details" rows={4} className={`${field} ${funding ? "@min-[440px]:flex-1" : ""}`} maxLength={4000} required />
-          </label>
+          {funding && <label className="block font-semibold">
+            Intended use of funds
+            <textarea name="intendedUse" rows={3} className={field} maxLength={1000} placeholder="Briefly describe what the requested funds will cover." required />
+          </label>}
+          {!funding && <label className="block font-semibold">
+            Event or activity description
+            <textarea name="details" rows={4} className={field} maxLength={4000} required />
+          </label>}
         </div>
         {funding && (
           <section aria-labelledby="funding-documents" className="min-w-0 space-y-4 border-t border-line pt-6 @min-[440px]:flex @min-[440px]:flex-col @min-[440px]:border-t-0 @min-[440px]:pt-0">
@@ -218,13 +225,9 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             <fieldset className="space-y-3">
               <legend className="sr-only">Required funding documents</legend>
               <label className="block font-semibold">
-                Funding approval email from MTTS
+                Funding approval email
                 <input name="approvalEmail" type="file" className={field} accept=".pdf,.png,.jpg,.jpeg" required />
-                <span className="mt-1 block font-normal text-ink-soft">Upload the email as a PDF or screenshot.</span>
-              </label>
-              <label className="block font-semibold">
-                One-page event description
-                <input name="eventDescription" type="file" className={field} accept=".pdf" required />
+                <span className="mt-1 block font-normal text-ink-soft">From the IEEE entity providing the funds. Upload the email as a PDF or screenshot.</span>
               </label>
               <label className="block font-semibold">
                 Event poster
@@ -263,7 +266,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           <span>I have added IEEE Rwanda as a collaborator in vTools and set <strong>gentille.uwera@ieee.org</strong> as the contact email. I understand that Gentille Uwera will be contacted during funding clearance to confirm the collaborator and contact email in vTools.</span>
         </label>
       )}
-      <div className="flex justify-center">
+      <div className={`flex justify-center ${funding ? "py-6" : ""}`}>
         <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!activity || Boolean(activity.fundingBlockedReason) || !organizers.length || !fundOptions.length))}>
           {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event or activity"}
         </button>

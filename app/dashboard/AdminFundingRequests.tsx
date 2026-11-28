@@ -132,6 +132,7 @@ export default async function AdminFundingRequests({ status, officerTitle }: { s
                           </div>
                         )}
                         <p className="mt-2 whitespace-pre-wrap wrap-anywhere text-sm text-ink-soft">{request.details}</p>
+                        {request.intendedUse && <p className="mt-2 whitespace-pre-wrap wrap-anywhere text-sm text-ink-soft"><strong>Intended use of funds:</strong> {request.intendedUse}</p>}
                         {request.vtools && (
                           <p className="mt-2 text-sm">
                             <a className="action-link" href={request.vtools} target="_blank" rel="noreferrer">vTools event</a>
@@ -141,11 +142,13 @@ export default async function AdminFundingRequests({ status, officerTitle }: { s
                           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                             {request.attachments.map((file, index) => (
                               <a className="action-link wrap-anywhere" key={index} href={`/api/funding-requests/${request.id}/${index}`}>
+                                {request.attachmentLabels?.[index] ? `${request.attachmentLabels[index]} · ` : <>
                                 {request.vtools && index === 0 && "Budget expense sheet · "}
                                 {request.vtools && index >= 1 && index <= (request.invoiceCount ?? 1) && "Invoice · "}
-                                {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 1 && "MTTS approval email · "}
+                                {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 1 && "Funding approval email · "}
                                 {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 2 && "One-page event description · "}
                                 {request.receiptsAcknowledgedAt && index === (request.invoiceCount ?? 1) + 3 && "Event poster · "}
+                                </>}
                                 {file}
                               </a>
                             ))}

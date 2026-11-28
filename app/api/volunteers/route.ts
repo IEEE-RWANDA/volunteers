@@ -142,7 +142,11 @@ export async function POST(request: Request) {
   let committee = field("committee");
   let eventVolunteerEmails: string[] | undefined;
   const eventUnitId = field("eventUnitId");
-  const details = field("details");
+  const details = activity ? activity.details ?? "" : field("details");
+  const intendedUse = kind === "funding" ? field("intendedUse") : undefined;
+  if (kind === "funding" && (!intendedUse || intendedUse.length > 1000)) {
+    return bad("Briefly describe the intended use of funds (up to 1,000 characters).");
+  }
   const date = activity ? activity.date.slice(0, 10) : field("date");
   const end = field("end");
   const location = field("location");
@@ -152,7 +156,7 @@ export async function POST(request: Request) {
   if (!title || title.length > 150 ||
       !details || details.length > 4000 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return bad(kind === "funding"
-      ? "Enter the funding purpose and a valid lead volunteer email."
+      ? "Select an activity with a description and enter a valid lead volunteer email."
       : "Enter a title, description, and valid contact email.");
   }
   if (!validDate(date, kind === "event")) return bad("Enter a valid date.");
@@ -203,13 +207,12 @@ export async function POST(request: Request) {
   const budget = filesFrom(form, "budget");
   const invoice = filesFrom(form, "invoice");
   const approvalEmail = filesFrom(form, "approvalEmail");
-  const eventDescription = filesFrom(form, "eventDescription");
   const eventPoster = filesFrom(form, "eventPoster");
   const extraFiles = filesFrom(form, "attachments");
-  const files = [...budget, ...invoice, ...approvalEmail, ...eventDescription, ...eventPoster];
+  const files = [...budget, ...invoice, ...approvalEmail, ...eventPoster];
   if (kind === "event" && files.length + extraFiles.length) return bad("Event submissions do not accept attachments.");
-  if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || eventDescription.length !== 1 || eventPoster.length !== 1 || extraFiles.length)) {
-    return bad("Attach the MTTS approval email, budget, invoices, one-page event description, and event poster.");
+  if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || eventPoster.length !== 1 || extraFiles.length)) {
+    return bad("Attach the funding approval email, budget, invoices, and event poster.");
   }
   if (files.length > fundingRequestAttachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
     return bad("Attach up to three invoices. All uploads must total 4 MB or less.", 413);
@@ -218,18 +221,18 @@ export async function POST(request: Request) {
   for (const [index, file] of files.entries()) {
     const name = cleanName(file);
     const bytes = Buffer.from(await file.arrayBuffer());
-    const descriptionIndex = invoice.length + 2;
-    const extensions = index === 0 ? /\.xlsx$/i : index === descriptionIndex ? /\.pdf$/i : /\.(pdf|png|jpe?g)$/i;
+    const extensions = index === 0 ? /\.xlsx$/i : /\.(pdf|png|jpe?g)$/i;
     if (!extensions.test(name) || !supportedFile(name, bytes)) {
-      return bad("Use XLSX for the budget, PDF for the one-page description, and PDF or images for the other documents.");
+      return bad("Use XLSX for the budget and PDF or images for the other documents.");
     }
-    uploads.push({ name, bytes });
+    const label = index === 0 ? "Budget expense sheet" : index <= invoice.length ? "Invoice" : index === invoice.length + 1 ? "Funding approval email" : "Event poster";
+    uploads.push({ name, bytes, label });
   }
 
   const id = randomUUID();
   const record: Submission = {
-    id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools,
-    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools, intendedUse,
+    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, attachmentLabels: uploads.map(upload => upload.label), receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const saved: string[] = [];

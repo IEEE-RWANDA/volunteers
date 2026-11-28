@@ -1,6 +1,6 @@
 export const attachmentLimit = 4 * 1024 * 1024;
 export const attachmentCount = 5;
-export const fundingRequestAttachmentCount = 7;
+export const fundingRequestAttachmentCount = 6;
 export const attachmentTypes = ".pdf,.xlsx,.docx,.png,.jpg,.jpeg";
 
 export type Organizer = { name: string; committee?: string };
@@ -30,6 +30,7 @@ export type Submission = {
   fundingEventId?: string;
   eventVolunteerEmails?: string[];
   details: string;
+  intendedUse?: string;
   date: string;
   end?: string;
   location?: string;
@@ -44,4 +45,5 @@ export type Submission = {
   releasedAmount?: string;
   demo?: boolean;
   attachments: string[];
+  attachmentLabels?: string[];
 };
