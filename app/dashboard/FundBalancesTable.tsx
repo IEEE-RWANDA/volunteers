@@ -22,24 +22,24 @@ export default function FundBalancesTable({ rows, volunteers, units }: { rows: R
   return <>
     <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <label className="min-w-0 text-sm font-semibold">Search funds
-        <input type="search" className="login-input min-w-0" placeholder="Funding source or activity name" value={search} onChange={event => setSearch(event.target.value)} />
+        <input type="search" className="login-input h-12 min-w-0 max-w-full" placeholder="Funding source or activity name" value={search} onChange={event => setSearch(event.target.value)} />
       </label>
       <label className="min-w-0 text-sm font-semibold">Filter by volunteer
-        <select className="login-input min-w-0 max-w-full" value={volunteer} onChange={event => setVolunteer(event.target.value)}>
+        <select className="login-input h-12 min-w-0 max-w-full" value={volunteer} onChange={event => setVolunteer(event.target.value)}>
           <option value="">All volunteers</option>
           <option value="unassigned">Unassigned</option>
           {volunteers.map(person => <option key={person.id} value={person.id}>{person.label}</option>)}
         </select>
       </label>
       <label className="min-w-0 text-sm font-semibold">Filter by unit
-        <select className="login-input min-w-0 max-w-full" value={unit} onChange={event => setUnit(event.target.value)}>
+        <select className="login-input h-12 min-w-0 max-w-full" value={unit} onChange={event => setUnit(event.target.value)}>
           <option value="">All units</option>
           <option value="unassigned">Unassigned</option>
           {units.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
       </label>
       <label className="min-w-0 text-sm font-semibold">Release status
-        <select className="login-input min-w-0 max-w-full" value={releaseStatus} onChange={event => setReleaseStatus(event.target.value)}>
+        <select className="login-input h-12 min-w-0 max-w-full" value={releaseStatus} onChange={event => setReleaseStatus(event.target.value)}>
           <option value="">All release statuses</option>
           <option value="fully-released">Fully released</option>
           <option value="partially-released">Partially released</option>
