@@ -1,3 +1,4 @@
+import ReleaseAllocationForm from "./ReleaseAllocationForm";
 import FundBalancesTable from "./FundBalancesTable";
 import ActionModal from "./ActionModal";
 import FundReleaseHistory from "./FundReleaseHistory";
@@ -34,7 +35,7 @@ export default async function AdminFundBalances({ email, status }: { email: stri
       <h2 id="fund-balances" className="panel-title">Fund balances</h2>
       {status === "fund-assignment-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Select an existing volunteer and unit for a fund with an available balance.</p>}
       {status === "fund-assignment-write" && <p role="alert" className="mt-2 text-sm text-red-700">The assignment could not be saved. Refresh and check the current assignment before retrying.</p>}
-      {status === "release-event-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Select an existing release and event.</p>}
+      {status === "release-event-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Choose existing events and positive USD allocations whose total does not exceed the release. Each event can appear only once.</p>}
       {status === "release-event-write" && <p role="alert" className="mt-2 text-sm text-red-700">The event assignment could not be saved. Refresh and retry.</p>}
       <FundBalanceTabs balances={<>
       {warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm text-red-700">{warning}</p>)}
@@ -105,18 +106,9 @@ export default async function AdminFundBalances({ email, status }: { email: stri
               ) };
             })} />
       </>} releases={<FundReleaseHistory rows={releases} assignmentControls={Object.fromEntries(releases.map(release => [release.id,
-        <ActionModal key={release.id} compact icon={release.eventId ? "edit" : "plus"} label={`${release.eventId ? "Edit event for" : "Assign event to"} ${release.title}`} title="Assign release to an event">
+        <ActionModal key={release.id} compact icon={release.eventAllocations?.length || release.eventId ? "edit" : "plus"} label={`Edit release for ${release.title}`} title="Edit release">
           <p className="mb-4 text-sm text-ink-soft">{release.title} · {release.amount}</p>
-          <form action={assignReleaseEvent} className="space-y-4">
-            <input type="hidden" name="releaseId" value={release.id} />
-            <label className="block text-sm font-semibold">Event or activity
-              <select className="login-input" name="eventId" defaultValue={release.eventId ?? ""}>
-                <option value="">Unassigned</option>
-                {events.map(event => <option key={event.id} value={event.id}>{event.title} · {event.date.slice(0, 10)}</option>)}
-              </select>
-            </label>
-            <button type="submit" className="btn btn-primary">Save</button>
-          </form>
+          <ReleaseAllocationForm release={release} events={events.map(event => ({ id: event.id, title: event.title, date: event.date }))} action={assignReleaseEvent} />
         </ActionModal>
       ]))} />} />
     </section>

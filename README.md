@@ -33,3 +33,9 @@ The public GitHub repository is connected to Vercel and automatically deploys pu
 Admins can manage chapters and student branches system-wide. Designate branch and chapter chairs from the unit assignment form. A student branch chair also manages the chapters of that branch.
 
 Admins can view event submissions and funding requests. Funding is fully approved only after approval by the Chair, Treasurer, and either the Vice Chair or Secretary. Gentille Uwera is the designated calendar reviewer; automatic calendar publishing is not enabled until the public calendar integration is configured.
+
+## Event funding workflow
+
+New funding requests and releases belong to one existing event. Volunteers may submit additional requests for that event, including later funding or reimbursement. Historical reconciliation splits are restricted to the fixed release IDs in `treasury-history/historical-release-scope.json`; new releases cannot be split. Event assignments do not change payment amounts, fund balances, or receipt approval decisions.
+
+Planned for the Events work: an editable total event budget and an in-portal spreadsheet for budget planning. These budget features are not implemented yet.

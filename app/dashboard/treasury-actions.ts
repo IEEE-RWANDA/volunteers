@@ -6,6 +6,7 @@ import { getTeamAccess } from "@/lib/session";
 import { assignTreasuryFund } from "@/lib/treasury-assignments";
 import { treasuryHistoryOwner } from "./TreasuryHistory";
 import { treasuryReleaseHistory } from "@/lib/treasury-release-history";
+import { releaseAmountCents, validateEventAllocations, validReleaseEventEdit } from "@/lib/release-history-filters";
 import { saveIntakeFile, volunteerEvents } from "@/lib/volunteer-store";
 
 export async function assignReleaseEvent(form: FormData) {
@@ -14,10 +15,14 @@ export async function assignReleaseEvent(form: FormData) {
   let status = "release-event-invalid";
   try {
     const releaseId = String(form.get("releaseId") ?? "");
-    const eventId = String(form.get("eventId") ?? "");
     const [releases, events] = await Promise.all([treasuryReleaseHistory(), volunteerEvents()]);
-    if (releases.some(row => row.id === releaseId) && (!eventId || events.some(event => event.id === eventId))) {
-      await saveIntakeFile(`release-event-links/${releaseId}.json`, JSON.stringify({ releaseId, eventId: eventId || null, recordedBy: access.email, recordedAt: new Date().toISOString() }), true);
+    const release = releases.find(row => row.id === releaseId);
+    const actor = String(form.get("actor") ?? release?.actor ?? "unknown");
+    const eventAllocations = validateEventAllocations(form.getAll("eventId").map(String), form.getAll("amount").map(String),
+      release ? releaseAmountCents(release.amount) : null, new Set(events.map(event => event.id)));
+    if (release && eventAllocations && validReleaseEventEdit(release, eventAllocations) && ["kip", "cyiza", "unknown"].includes(actor)) {
+      await saveIntakeFile(`release-event-links/${releaseId}.json`, JSON.stringify({ releaseId, eventAllocations, actor,
+        recordedBy: access.email, recordedAt: new Date().toISOString() }), true);
       status = "release-event-saved";
     }
   } catch { status = "release-event-write"; }

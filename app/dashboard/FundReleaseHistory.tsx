@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type ReactNode } from "react";
 import { formatUsd } from "@/lib/fund-amounts";
-import { filterReleaseHistory, groupEventReleases, releaseAmountCents, releaseReportStatus, type ReleaseHistoryRow } from "@/lib/release-history-filters";
+import { expandReleaseAllocations, filterReleaseHistory, groupEventReleases, releaseAmountCents, releaseReportStatus, type ReleaseHistoryRow } from "@/lib/release-history-filters";
 
 export type FundReleaseRow = ReleaseHistoryRow;
 
@@ -11,9 +11,10 @@ export default function FundReleaseHistory({ rows, assignmentControls = {} }: { 
   const [actor, setActor] = useState("");
   const [event, setEvent] = useState("");
   const [status, setStatus] = useState("");
-  const events = [...new Map(rows.filter(row => row.eventId).map(row => [row.eventId!, row.eventTitle ?? row.title])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  const statuses = [...new Set(rows.map(row => releaseReportStatus(row.reported)))].sort();
-  const visible = filterReleaseHistory(rows, search, actor, event, status);
+  const allocatedRows = expandReleaseAllocations(rows);
+  const events = [...new Map(allocatedRows.filter(row => row.eventId).map(row => [row.eventId!, row.eventTitle ?? row.title])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const statuses = [...new Set(allocatedRows.map(row => releaseReportStatus(row.reported)))].sort();
+  const visible = filterReleaseHistory(allocatedRows, search, actor, event, status);
   const total = visible.reduce((sum, row) => sum + (releaseAmountCents(row.amount) ?? 0), 0);
   const excluded = visible.filter(row => releaseAmountCents(row.amount) === null).length;
   const filtered = Boolean(search.trim() || actor || event || status);
@@ -52,22 +53,24 @@ export default function FundReleaseHistory({ rows, assignmentControls = {} }: { 
       <div className="mt-3 scrollable-table" role="region" aria-label="Release history table" tabIndex={0}>
         <table className="w-full min-w-[48rem] text-left text-sm">
           <thead className="border-b border-line bg-paper-2">
-            <tr>{["Event / activity", "Release / transaction", "Date", "Released", "Released by", "Reported"].map(label => <th key={label} scope="col" className="px-3 py-2">{label}</th>)}</tr>
+            <tr>{["Event / activity", "Release / transaction", "Date", "Allocated / unallocated", "Released by", "Event report"].map(label => <th key={label} scope="col" className="px-3 py-2">{label}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-line">
             {groupEventReleases(visible).map(([eventId, group]) => <Fragment key={eventId}>
             {group.map((row, index) => (
-              <tr key={row.id} className="align-top">
-                {index === 0 && <th scope="rowgroup" rowSpan={group.length + (group.length > 1 ? 1 : 0)} className="min-w-40 wrap-anywhere border-r border-line bg-paper-2/50 px-3 py-3 font-semibold">
+              <tr key={`${row.id}-${row.eventId ?? "unlinked"}`} className="align-top">
+                {index === 0 && <th scope="rowgroup" rowSpan={group.length + (group.length > 1 ? 1 : 0)} className="align-middle text-center min-w-40 wrap-anywhere border-r border-line bg-paper-2/50 px-3 py-3 font-semibold">
                   {row.eventId ? <a className="action-link" href={`/?section=team&tab=events#activity-${row.eventId}`}>{row.eventTitle ?? row.title}</a> : "Unassigned"}
                 </th>}
                 <th scope="row" className="wrap-anywhere px-3 py-3 font-normal">
                   <div className="flex items-start justify-between gap-2"><span>{row.title}</span>{assignmentControls[row.id]}</div>
+                  {row.releaseAmount && <p className="mt-1 text-xs text-ink-soft">Release: {row.releaseAmount} · Remaining: {row.remainingCents === undefined ? "Unverified" : formatUsd(row.remainingCents)}</p>}
+                  {row.unallocated && <p className="mt-1 text-xs text-ink-soft">Unallocated balance</p>}
                 </th>
                 <td className="whitespace-nowrap px-3 py-3">{row.date}</td>
                 <td className="whitespace-nowrap px-3 py-3">{row.amount}</td>
                 <td className="px-3 py-3">{row.actor === "kip" ? "Kip" : row.actor === "cyiza" ? "Cyiza" : "Unverified"}{row.method === "card" && " · Card"}</td>
-                <td className="px-3 py-3">{row.reported}</td>
+                <td className={`px-3 py-3 ${["Report submitted", "Report approved"].includes(row.reported) ? "bg-green-50 font-semibold text-green-800" : ""}`}>{row.reported}</td>
               </tr>
             ))}
             {group.length > 1 && <tr className="bg-paper-2/50 font-semibold"><th scope="row" colSpan={2} className="px-3 py-2">{eventId === "unlinked" ? "Unassigned subtotal" : "Event subtotal"}</th><td className="whitespace-nowrap px-3 py-2">{formatUsd(group.reduce((sum, row) => sum + (releaseAmountCents(row.amount) ?? 0), 0))}</td><td colSpan={2} /></tr>}
