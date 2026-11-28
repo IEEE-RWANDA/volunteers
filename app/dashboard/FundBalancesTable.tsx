@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { formatUsd } from "@/lib/fund-amounts";
+import { fundReleaseStatus } from "@/lib/fund-release-status";
 
 type Option = { id: string; label: string };
 type Row = { id: string; volunteerEmail?: string; unitId?: string; incoming: number; released: number; balance: number; content: ReactNode };
@@ -9,8 +10,10 @@ type Row = { id: string; volunteerEmail?: string; unitId?: string; incoming: num
 export default function FundBalancesTable({ rows, volunteers, units }: { rows: Row[]; volunteers: Option[]; units: Option[] }) {
   const [volunteer, setVolunteer] = useState("");
   const [unit, setUnit] = useState("");
+  const [releaseStatus, setReleaseStatus] = useState("");
   const visible = rows.filter(row => (!volunteer || (volunteer === "unassigned" ? !row.volunteerEmail : row.volunteerEmail === volunteer)) &&
-    (!unit || (unit === "unassigned" ? !row.unitId : row.unitId === unit)));
+    (!unit || (unit === "unassigned" ? !row.unitId : row.unitId === unit)) &&
+    (!releaseStatus || fundReleaseStatus(row) === releaseStatus));
   const totals = visible.reduce((sum, row) => ({ incoming: sum.incoming + row.incoming, released: sum.released + row.released, balance: sum.balance + row.balance }), { incoming: 0, released: 0, balance: 0 });
 
   return <>
@@ -29,7 +32,15 @@ export default function FundBalancesTable({ rows, volunteers, units }: { rows: R
           {units.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
       </label>
-      {(volunteer || unit) && <button type="button" className="self-end rounded-md px-3 py-3 text-sm font-semibold text-blue" onClick={() => { setVolunteer(""); setUnit(""); }}>Clear filters</button>}
+      <label className="min-w-0 text-sm font-semibold">Release status
+        <select className="login-input max-w-full" value={releaseStatus} onChange={event => setReleaseStatus(event.target.value)}>
+          <option value="">All release statuses</option>
+          <option value="fully-released">Fully released</option>
+          <option value="partially-released">Partially released</option>
+          <option value="not-released">Not released yet</option>
+        </select>
+      </label>
+      {(volunteer || unit || releaseStatus) && <button type="button" className="self-end rounded-md px-3 py-3 text-sm font-semibold text-blue" onClick={() => { setVolunteer(""); setUnit(""); setReleaseStatus(""); }}>Clear filters</button>}
     </div>
     <div className="mt-4 scrollable-table" role="region" aria-label="Fund balances table" tabIndex={0}>
       <table className="w-full min-w-[60rem] text-left text-sm">
@@ -42,7 +53,7 @@ export default function FundBalancesTable({ rows, volunteers, units }: { rows: R
         </tbody>
         <tfoot className="border-t border-line font-semibold text-navy">
           <tr>
-            <th scope="row" colSpan={2} className="px-3 py-3">{volunteer || unit ? "Filtered total" : "Total"}</th>
+            <th scope="row" colSpan={2} className="px-3 py-3">{volunteer || unit || releaseStatus ? "Filtered total" : "Total"}</th>
             <td className="px-3 py-3 text-right">{formatUsd(totals.incoming)}</td>
             <td className="px-3 py-3 text-right">{formatUsd(totals.released)}</td>
             <td className="px-3 py-3 text-right">{formatUsd(totals.balance)}</td>
