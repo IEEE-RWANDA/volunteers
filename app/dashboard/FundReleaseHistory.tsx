@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type ReactNode } from "react";
 import { formatUsd } from "@/lib/fund-amounts";
-import { expandReleaseAllocations, filterReleaseHistory, groupEventReleases, releaseAmountCents, releaseReportStatus, type ReleaseHistoryRow } from "@/lib/release-history-filters";
+import { expandReleaseAllocations, filterReleaseHistory, groupEventReleases, releaseAmountCents, releaseReportStatus, releaseReportColor, type ReleaseHistoryRow } from "@/lib/release-history-filters";
 
 export type FundReleaseRow = ReleaseHistoryRow;
 
@@ -56,10 +56,13 @@ export default function FundReleaseHistory({ rows, assignmentControls = {} }: { 
             <tr>{["Event / activity", "Release / transaction", "Date", "Allocated / unallocated", "Released by", "Event report"].map(label => <th key={label} scope="col" className="px-3 py-2">{label}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {groupEventReleases(visible).map(([eventId, group]) => <Fragment key={eventId}>
+            {groupEventReleases(visible).map(([eventId, group]) => {
+              const color = releaseReportColor(group[0].reported);
+              const sharedColor = group.every(item => releaseReportColor(item.reported) === color) && color ? color : "bg-paper-2/50";
+              return <Fragment key={eventId}>
             {group.map((row, index) => (
-              <tr key={`${row.id}-${row.eventId ?? "unlinked"}`} className="align-top">
-                {index === 0 && <th scope="rowgroup" rowSpan={group.length + (group.length > 1 ? 1 : 0)} className="align-middle text-center min-w-40 wrap-anywhere border-r border-line bg-paper-2/50 px-3 py-3 font-semibold">
+              <tr key={`${row.id}-${row.eventId ?? "unlinked"}`} className={`align-top ${releaseReportColor(row.reported)}`}>
+                {index === 0 && <th scope="rowgroup" rowSpan={group.length + (group.length > 1 ? 1 : 0)} className={`align-middle text-center min-w-40 wrap-anywhere border-r border-line px-3 py-3 font-semibold ${sharedColor}`}>
                   {row.eventId ? <a className="action-link" href={`/?section=team&tab=events#activity-${row.eventId}`}>{row.eventTitle ?? row.title}</a> : "Unassigned"}
                 </th>}
                 <th scope="row" className="wrap-anywhere px-3 py-3 font-normal">
@@ -70,11 +73,12 @@ export default function FundReleaseHistory({ rows, assignmentControls = {} }: { 
                 <td className="whitespace-nowrap px-3 py-3">{row.date}</td>
                 <td className="whitespace-nowrap px-3 py-3">{row.amount}</td>
                 <td className="px-3 py-3">{row.actor === "kip" ? "Kip" : row.actor === "cyiza" ? "Cyiza" : "Unverified"}{row.method === "card" && " · Card"}</td>
-                <td className={`px-3 py-3 ${["Report submitted", "Report approved"].includes(row.reported) ? "bg-green-50 font-semibold text-green-800" : ""}`}>{row.reported}</td>
+                <td className="px-3 py-3 font-semibold">{row.reported}</td>
               </tr>
             ))}
-            {group.length > 1 && <tr className="bg-paper-2/50 font-semibold"><th scope="row" colSpan={2} className="px-3 py-2">{eventId === "unlinked" ? "Unassigned subtotal" : "Event subtotal"}</th><td className="whitespace-nowrap px-3 py-2">{formatUsd(group.reduce((sum, row) => sum + (releaseAmountCents(row.amount) ?? 0), 0))}</td><td colSpan={2} /></tr>}
-            </Fragment>)}
+            {group.length > 1 && <tr className={`font-semibold ${sharedColor}`}><th scope="row" colSpan={2} className="px-3 py-2">{eventId === "unlinked" ? "Unassigned subtotal" : "Event subtotal"}</th><td className="whitespace-nowrap px-3 py-2">{formatUsd(group.reduce((sum, row) => sum + (releaseAmountCents(row.amount) ?? 0), 0))}</td><td colSpan={2} /></tr>}
+            </Fragment>;
+            })}
             {!visible.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-ink-soft">No releases match these filters.</td></tr>}
           </tbody>
           <tfoot className="border-t border-line font-semibold text-navy">

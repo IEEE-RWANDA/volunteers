@@ -6,6 +6,14 @@ export function releaseReportStatus(reported: string) {
   return reported;
 }
 
+export function releaseReportColor(reported: string) {
+  const status = releaseReportStatus(reported);
+  if (["Report submitted", "Report approved", "Receipt covered"].includes(status)) return "bg-green-50";
+  if (status === "Changes requested") return "bg-red-50";
+  if (["Not submitted", "Partially reported", "Receipt not matched"].includes(status)) return "bg-yellow-50";
+  return "";
+}
+
 export function releaseAmountCents(amount: string) {
   const value = amount.replaceAll(",", "").trim();
   const match = /^(?:USD\s+(\d{1,12}(?:\.\d{1,2})?)|(\d{1,12}(?:\.\d{1,2})?)\s+USD)$/.exec(value);
