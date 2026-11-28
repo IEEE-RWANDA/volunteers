@@ -236,7 +236,6 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
                   <input name="budget" type="file" className={field} accept=".xlsx" required />
                 </label>
                 <a href="https://docs.google.com/spreadsheets/d/1sDA_Yyt780Eivl2DRBXuXaGvJxf2XP4hGuLr2E2lYfs/copy" target="_blank" rel="noopener noreferrer" className="action-link mt-1 inline-block">Make a copy of the budget template</a>
-                <p className="mt-1 text-sm text-ink-soft">Complete your copy in Google Sheets, then download it as Excel (.xlsx) and upload it here.</p>
               </div>
               <label className="block font-semibold">
                 Invoices
