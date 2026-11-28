@@ -26,6 +26,7 @@ export type Submission = {
   committee: string;
   organizers?: Organizer[];
   eventUnitId?: string;
+  eventBudget?: import("./event-budget").EventBudget;
   fundingEventId?: string;
   eventVolunteerEmails?: string[];
   details: string;

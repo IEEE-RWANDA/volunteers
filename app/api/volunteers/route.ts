@@ -1,3 +1,4 @@
+import { parseEventBudget } from "@/lib/event-budget";
 import { receiptDriveEnabled, trashDriveReceipt, uploadDriveReceipt } from "@/lib/receipt-drive";
 import { randomUUID } from "node:crypto";
 import { attachmentCount, attachmentLimit, fundingRequestAttachmentCount, type Organizer, type Submission } from "@/lib/volunteer-intake";
@@ -228,10 +229,15 @@ export async function POST(request: Request) {
     uploads.push({ name, bytes });
   }
 
+  let eventBudget;
+  if (kind === "event") {
+    try { eventBudget = parseEventBudget(JSON.parse(field("eventBudget"))); } catch { return bad("Enter a valid event budget."); }
+    if (!eventBudget) return bad("Enter a valid event budget and complete each budget item.");
+  }
   const id = randomUUID();
   const record: Submission = {
     id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools,
-    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    ...(kind === "event" ? { end, location, eventBudget, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const saved: string[] = [];

@@ -1,5 +1,7 @@
 "use client";
 
+import EventBudgetFields from "./EventBudgetFields";
+
 import { useState, type FormEvent } from "react";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import type { FundBalance } from "@/lib/listed-funds";
@@ -11,6 +13,7 @@ const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper 
 
 export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; unitId?: string; fundingBlockedReason?: string | null }[] }) {
   const router = useRouter();
+  const [budgetVersion, setBudgetVersion] = useState(0);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
   const [selection, setSelection] = useState<string[]>([]);
@@ -78,7 +81,8 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
       setSelectedFunds([]);
       setFundAmounts({});
       setResult({ id: body.id });
-      if (funding) router.refresh();
+      setBudgetVersion(version => version + 1);
+      router.refresh();
     } catch {
       setResult({ error: "The site could not be reached. Your entries are still here. Please try again." });
     } finally {
@@ -89,6 +93,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   return (
     <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event/activity submission"}>
       <input type="hidden" name="kind" value={kind} />
+      {!funding && <section className="rounded-xl border border-line p-4"><h3 className="mb-4 font-semibold">Event budget</h3><EventBudgetFields key={budgetVersion} /></section>}
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
           {funding && <h3 className="font-display text-lg font-bold text-navy">Activity and funding details</h3>}

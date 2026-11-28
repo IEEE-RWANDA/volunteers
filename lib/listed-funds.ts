@@ -4,7 +4,7 @@ import { usdCents } from "./fund-amounts";
 import type { FundAllocation, Submission } from "./volunteer-intake";
 
 type ListedFund = { id: string; name: string; amount?: string; cents?: number; volunteerEmail?: string; unitId?: string; unitName?: string; treasuryRowId?: string };
-export type FundBalance = { id: string; name: string; remainingCents: number; unitId?: string; unitName?: string };
+export type FundBalance = { id: string; name: string; remainingCents: number; assignedCents?: number; unitId?: string; unitName?: string };
 
 export async function listedFunds(releases?: Awaited<ReturnType<typeof allocatedReleases>>): Promise<(FundBalance & { volunteerEmail?: string; treasuryRowId?: string })[]> {
   const [paths, ledger, baseline] = await Promise.all([listIntakeRecords("listed-funds"), releases ?? allocatedReleases(),
@@ -26,6 +26,7 @@ export async function listedFunds(releases?: Awaited<ReturnType<typeof allocated
       unitId: fund.unitId,
       unitName: fund.unitName,
       treasuryRowId: fund.treasuryRowId,
+      assignedCents: available,
       remainingCents: available - (spent.get(fund.id) ?? 0),
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
@@ -33,7 +34,7 @@ export async function listedFunds(releases?: Awaited<ReturnType<typeof allocated
 
 export async function fundsForVolunteer(email: string): Promise<FundBalance[]> {
   return (await listedFunds())
-    .filter(fund => !fund.volunteerEmail || fund.volunteerEmail === email)
+    .filter(fund => fund.volunteerEmail === email)
     .map(({ id, name, remainingCents, unitId, unitName }) => ({ id, name, remainingCents, unitId, unitName }));
 }
 

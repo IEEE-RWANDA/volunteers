@@ -1,11 +1,14 @@
 import { formatUsd } from "@/lib/fund-amounts";
-import { fundsForVolunteer } from "@/lib/listed-funds";
+import { fundsForVolunteer, listedFunds } from "@/lib/listed-funds";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTeamAccess } from "@/lib/session";
 import { organizerOptions } from "@/lib/volunteer-roster";
 import { volunteerEvents, volunteerSubmissions } from "@/lib/volunteer-store";
+import EventBudgetPlanner from "./EventBudgetPlanner";
+import type { EventBudget } from "@/lib/event-budget";
+import { readIntakeJson } from "@/lib/volunteer-store";
 import VolunteerForm from "@/app/components/VolunteerForm";
 import { cookies } from "next/headers";
 import { googleAvatarCookie, googleAvatarUrl, googleDisplayName, googleDisplayNameCookie } from "@/lib/google-avatar";
@@ -21,7 +24,7 @@ import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
 import { fundingReportStatuses } from "@/lib/funding-reports";
-import TreasuryHistory, { treasuryHistoryOwner } from "./TreasuryHistory";
+import VolunteerFundingSummary from "./VolunteerFundingSummary";
 import "./workspace.css";
 import { fundingLeadershipBlocks, unlinkedFundingActivity } from "@/lib/funding-leadership";
 
@@ -47,19 +50,20 @@ export default async function Dashboard({ email, params }: { email: string; para
   const current = navigation.find(item => item.id === section) ?? navigation[0];
   const volunteerTab = tab === "roles" || tab === "directory" || tab === "organizations" ? tab
     : unitStatus && !tab ? "organizations" : "profile";
-  const treasury = current.id === "funding" && tab === "treasury-history" && email === treasuryHistoryOwner;
-  const reporting = current.id === "funding" && !treasury && (tab === "reporting" || Boolean(request) || report === "saved");
-  const funding = current.id === "funding" && !reporting && !treasury;
+  const reporting = current.id === "funding" && (tab === "reporting" || Boolean(request) || report === "saved");
+  const funding = current.id === "funding" && !reporting;
+  const assignedFunds = current.id === "funding" ? (await listedFunds()).filter(fund => fund.volunteerEmail === email) : [];
   const funds = funding ? await fundsForVolunteer(email) : [];
   const leadershipBlocks = funding ? await fundingLeadershipBlocks() : new Map<string, string | null>();
   const initialFund = funds.find(item => item.id === fund && item.remainingCents > 0)?.id;
   const eventUnits = current.id === "events" ? await volunteerUnits() : [];
   const organizers = funding || current.id === "events" ? await organizerOptions() : [];
   const [records, activityEntries, fundingActivities] = await Promise.all([
-    current.id === "overview" || reporting ? volunteerSubmissions(email) : [],
+    current.id === "overview" || current.id === "events" || current.id === "funding" ? volunteerSubmissions(email) : [],
     current.id === "overview" ? volunteerHours(email) : [],
     funding ? volunteerEvents() : [],
   ]);
+  const eventBudgets = current.id === "events" ? await Promise.all(records.filter(record => record.kind === "event").map(async event => ({ event, budget: await readIntakeJson<EventBudget>(`event-budgets/${event.id}.json`) }))) : [];
   const reportStatuses = await fundingReportStatuses(records.filter(record => record.kind === "funding").map(record => record.id));
   const eventCount = records.filter(record => record.kind === "event").length;
 
@@ -159,24 +163,11 @@ export default async function Dashboard({ email, params }: { email: string; para
             {current.id === "funding" && (
               <nav aria-label="Funding and reporting" className="dashboard-nav mb-5">
                 <Link href="/?section=funding" aria-current={funding ? "page" : undefined}>Funding</Link>
-                {email === treasuryHistoryOwner && <Link href="/?section=funding&tab=treasury-history" aria-current={treasury ? "page" : undefined}>Treasury history</Link>}
                 <Link href="/?section=funding&tab=reporting" aria-current={reporting ? "page" : undefined}>Reporting</Link>
               </nav>
             )}
-            {funding && (
-              <section className="panel mb-5" aria-labelledby="listed-funds">
-                <h2 id="listed-funds" className="panel-title">Your funds</h2>
-                {funds.length ? <ul className="mt-3 divide-y divide-line">
-                  {funds.map(item => (
-                    <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                      <span>{item.name}{item.unitName && ` · ${item.unitName}`} · {formatUsd(item.remainingCents)} left</span>
-                      {item.remainingCents > 0 && <Link className="action-link" href={`/?section=funding&fund=${item.id}#funding-request`}>Request from this fund</Link>}
-                    </li>
-                  ))}
-                </ul> : <p className="mt-3 text-sm text-ink-soft">You have no available funding sources listed yet.</p>}
-              </section>
-            )}
-            {treasury ? <TreasuryHistory email={email} /> : reporting ? (
+            {current.id === "funding" && <VolunteerFundingSummary email={email} records={records} funds={assignedFunds} statuses={reportStatuses} />}
+            {reporting ? (
               <>
                 <ReleasedFunds records={records} statuses={reportStatuses} />
                 <FundingReports records={records} statuses={reportStatuses} saved={report === "saved"} requestId={request} />
@@ -215,7 +206,8 @@ export default async function Dashboard({ email, params }: { email: string; para
                   )}
                 </section>
               ) : (
-                <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
+                <div className="space-y-5">
+                  {eventBudgets.length > 0 && <section className="panel"><h2 className="panel-title">Your event budgets</h2><p className="mt-2 text-sm text-ink-soft">Plan and update each activity’s budget in USD.</p><div className="mt-4 space-y-3">{eventBudgets.map(({ event, budget }) => <details key={event.id} className="rounded-xl border border-line p-4"><summary className="cursor-pointer font-semibold text-navy">{event.title}</summary><EventBudgetPlanner id={event.id} initial={budget ?? event.eventBudget} /></details>)}</div></section>}
                   <section className="panel">
                     <h2 className="panel-title">Event/activity submission</h2>
                     <VolunteerForm kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits.map(({ id, label }) => ({ id, label }))} />
