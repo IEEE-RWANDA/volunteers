@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { accountRoster, getTeamAccess, getVolunteer } from "@/lib/session";
 import { addToRoster, roster } from "@/lib/volunteer-roster";
-import { addVolunteerUnit, applyForUnitRole, archiveVolunteerUnit, assignVolunteerUnit, awardUnitBadge, canCreateUnit, canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, decideUnitApplication, designateUnitLead, editUnitBadge, openUnitRoles, postUnitRole, roleApplications, unitBadges, unitLeads, unitMemberships, updateVolunteerUnit, volunteerUnits, type UnitType } from "@/lib/volunteer-units";
+import { addVolunteerUnit, applyForUnitRole, archiveVolunteerUnit, assignVolunteerUnit, awardUnitBadge, canCreateUnit, canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, decideUnitApplication, designateUnitLead, editUnitBadge, openUnitRoles, postUnitRole, roleApplications, unitAssignmentTitles, unitBadges, unitLeads, unitMemberships, updateVolunteerUnit, volunteerUnits, type UnitType } from "@/lib/volunteer-units";
 
 function finish(status: string): never {
   revalidatePath("/");
@@ -50,7 +50,9 @@ export async function assignUnit(form: FormData) {
   const email = String(form.get("email") ?? "");
   const unitId = String(form.get("unitId") ?? "");
   const authority = await requireUnitManager(unitId);
-  const chair = form.get("lead") === "yes";
+  const roleTitle = String(form.get("roleTitle") ?? "").trim();
+  if (roleTitle && !unitAssignmentTitles(unitId, await openUnitRoles(), await unitBadges()).includes(roleTitle)) unitResult("invalid-role");
+  const chair = roleTitle === "Chair" || form.get("lead") === "yes";
   if (chair && !canDesignateUnitChair(authority.email, authority.unit, authority.systemWide, authority.chairs)) {
     unitResult("unit-forbidden");
   }
@@ -59,6 +61,7 @@ export async function assignUnit(form: FormData) {
   try {
     await assignVolunteerUnit(email, unitId);
     if (chair) await designateUnitLead(email, unitId);
+    if (roleTitle && roleTitle !== "Chair") await awardUnitBadge(email, unitId, roleTitle);
   } catch {
     unitResult("unit-unavailable");
   }
@@ -132,7 +135,12 @@ export async function updateUnitBadge(form: FormData) {
   const { unit } = await requireUnitManager(unitId);
   const badge = (await unitBadges()).find(item => item.id === badgeId && item.unitId === unitId);
   if (!badge || !label || label.length > 60) unitResult("invalid-badge", unit.type);
-  const updated = await editUnitBadge(badgeId, label).catch(() => false);
+  const email = String(form.get("email") ?? badge.email);
+  if (!(await roster()).some(member => member.email === email)) unitResult("invalid-unit-member", unit.type);
+  const updated = await (async () => {
+    await assignVolunteerUnit(email, unitId);
+    return editUnitBadge(badgeId, label, email);
+  })().catch(() => false);
   unitResult(updated ? "role-title-updated" : "unit-unavailable", unit.type);
 }
 

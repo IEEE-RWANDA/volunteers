@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import ActionModal from "./ActionModal";
 import UnitLogo from "./UnitLogo";
 import StudentBranchTabs from "./StudentBranchTabs";
-import { canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
+import { canDeleteUnit, canDesignateUnitChair, canManageAllUnits, canManageUnit, openUnitRoles, roleApplications, unitAssignmentTitles, unitBadges, unitLeads, unitMemberships, unitTypes, volunteerUnits } from "@/lib/volunteer-units";
 import { addUnitRole, assignUnit, createUnit, deleteUnit, editUnit, giveUnitBadge, reviewUnitApplication, updateUnitBadge } from "./team-actions";
 
 const organizationGroups = [
@@ -25,7 +25,7 @@ const messages: Record<string, string> = {
   "invalid-unit": "Check the organization name, type, and parent. Only student branch chapters and affinity groups use a parent student branch.",
   "invalid-unit-member": "Select an existing volunteer and unit.",
   "badge-awarded": "Role title added.",
-  "role-title-updated": "Role title updated.",
+  "role-title-updated": "Role assignment updated.",
   "role-posted": "Open role posted.",
   "role-applied": "Application submitted.",
   "application-reviewed": "Application decision saved.",
@@ -71,34 +71,14 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
             const chapters = units.filter(chapter => (chapter.type === "branchChapter" || chapter.type === "branchAffinity") && chapter.parentId === unit.id);
             return (
               <li key={unit.id} className="min-w-0 rounded-lg border border-line p-4">
-                <div className="mb-3">
-                  <div className="flex items-start gap-3">
-                    <UnitLogo unit={unit} />
-                    <div className="min-w-0 grow">
-                      <h4 className="wrap-anywhere font-semibold text-navy">{unit.name}</h4>
-                      <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[unit.type]}</span>
-                    </div>
-                  </div>
-                  <div className="mt-3">{unitActions(unit)}</div>
-                </div>
-                {unitDetails(unit.id)}
+                {organizationModal(unit)}
                 {chapters.length > 0 && (
                   <div className="mt-4 border-t border-line pt-3">
                     <h5 className="text-sm font-semibold text-navy">Student branch organizations</h5>
                     <ul className="mt-3 grid items-start gap-3 md:grid-cols-2">
                       {chapters.map(chapter => (
                         <li key={chapter.id} className="rounded-md border border-line p-3">
-                          <div className="mb-3">
-                            <div className="flex items-start gap-3">
-                              <UnitLogo unit={chapter} />
-                              <div className="min-w-0 grow">
-                                <h6 className="wrap-anywhere text-sm font-semibold text-navy">{chapter.name}</h6>
-                                <span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[chapter.type]}</span>
-                              </div>
-                            </div>
-                            <div className="mt-3">{unitActions(chapter)}</div>
-                          </div>
-                          {unitDetails(chapter.id)}
+                          {organizationModal(chapter)}
                         </li>
                       ))}
                     </ul>
@@ -130,6 +110,16 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
       </div>
     </section>
   );
+
+  function organizationModal(unit: (typeof units)[number]) {
+    return <ActionModal label={`Open ${unit.name}`} title={unit.name} icon="person"
+      triggerClassName="flex w-full items-start gap-3 rounded-md text-left hover:bg-paper-2 focus-visible:outline-2 focus-visible:outline-blue"
+      trigger={<><UnitLogo unit={unit} /><span className="min-w-0 grow"><span className="block wrap-anywhere font-semibold text-navy">{unit.name}</span><span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[unit.type]}</span></span></>}>
+      <p className="mb-3 text-sm text-ink-soft">{unitTypes[unit.type]}</p>
+      {unitActions(unit)}
+      <div className="mt-4">{unitDetails(unit.id)}</div>
+    </ActionModal>;
+  }
 
   function createUnitForm(type: "chapter" | "branch" | "affinity", parentId?: never): ReactNode;
   function createUnitForm(type: "branchChapter" | "branchAffinity", parentId: string): ReactNode;
@@ -216,12 +206,12 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
             {members.map(member => <option key={member.email} value={member.email}>{member.name} · {member.email}</option>)}
           </select>
         </label>
-        {canDesignateUnitChair(viewer, unit, systemWide, leads) && (
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="lead" value="yes" className="mt-1" />
-            <span>Make this volunteer the chair of this organization. The selected email must already have approved sign-in access.</span>
-          </label>
-        )}
+        <label className="block text-sm font-semibold">Role
+          <select name="roleTitle" className="login-input" defaultValue="">
+            <option value="">Volunteer</option>
+            {unitAssignmentTitles(unit.id, roles, badges).filter(title => title !== "Chair" || canDesignateUnitChair(viewer, unit, systemWide, leads)).map(title => <option key={title} value={title}>{title}</option>)}
+          </select>
+        </label>
         <button className="btn btn-primary" type="submit">Assign volunteer</button>
       </form>
     );
@@ -272,14 +262,19 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                       <span key={badge.id} className="inline-flex items-center gap-1 rounded-full bg-paper-2 py-0.5 ps-2 pe-1 text-xs font-semibold text-navy">
                         <span><span aria-hidden="true">★ </span>{badge.label}</span>
                         {manager && (
-                          <ActionModal label={`Edit ${badge.label}`} title="Edit role title" icon="edit" compact>
+                          <ActionModal label={`Edit ${badge.label}`} title="Edit role assignment" icon="edit" compact>
                             <form action={updateUnitBadge} className="space-y-3">
                               <input type="hidden" name="unitId" value={unitId} />
                               <input type="hidden" name="badgeId" value={badge.id} />
+                              <label className="block text-sm font-semibold">Volunteer
+                                <select name="email" className="login-input" defaultValue={member.email} required>
+                                  {members.map(volunteer => <option key={volunteer.email} value={volunteer.email}>{volunteer.name} · {volunteer.email}</option>)}
+                                </select>
+                              </label>
                               <label className="block text-sm font-semibold">Role title
                                 <input name="label" className="login-input" defaultValue={badge.label} maxLength={60} required autoFocus />
                               </label>
-                              <button className="btn btn-primary" type="submit">Save role title</button>
+                              <button className="btn btn-primary" type="submit">Save role assignment</button>
                             </form>
                           </ActionModal>
                         )}
@@ -290,17 +285,18 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                     ))}
                   </div>
                   {manager && (
-                    <details className="mt-1">
-                      <summary className="cursor-pointer font-medium text-blue">Add role title</summary>
-                      <form action={giveUnitBadge} className="mt-2 flex flex-wrap items-end gap-2">
+                    <div className="mt-1">
+                      <ActionModal label={`Add role for ${member.name}`} title={`Add role for ${member.name}`} icon="plus" compact>
+                      <form action={giveUnitBadge} className="flex flex-wrap items-end gap-2">
                         <input type="hidden" name="unitId" value={unitId} />
                         <input type="hidden" name="email" value={member.email} />
                         <label className="min-w-0 grow text-xs font-semibold">Role title
                           <input name="label" className="login-input" maxLength={60} required />
                         </label>
-                        <button className="btn btn-primary text-xs" type="submit">Add role title</button>
+                        <button className="btn btn-primary text-xs" type="submit">Add role</button>
                       </form>
-                    </details>
+                      </ActionModal>
+                    </div>
                   )}
                 </li>
               );

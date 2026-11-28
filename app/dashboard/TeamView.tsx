@@ -109,7 +109,7 @@ export default async function TeamView({ access, status }: { access: Access; sta
           organizations: <VolunteerUnits members={members} viewer={access.email} admin />,
           roster: volunteerRoster,
           balances: access.email === treasuryHistoryOwner ? <AdminFundBalances email={access.email} status={status} /> : null,
-          events: <AdminEvents viewer={access.email} />,
+          events: <AdminEvents viewer={access.email} status={status} />,
           funding: <AdminFundingRequests status={status} officerTitle={access.officerTitle} />,
           reporting: (
             <section className="panel" aria-labelledby="admin-reports">

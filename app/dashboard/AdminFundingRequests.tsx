@@ -10,7 +10,6 @@ const messages: Record<string, { text: string; error?: boolean }> = {
   "funding-receipts": { text: "Approve the volunteer’s outstanding funding reports for this funder before releasing funds for a different activity.", error: true },
   "funding-invoice": { text: "Confirm that the invoices match the requested amount and currency before approving.", error: true },
   "funding-approved": { text: "Funding request approved. Record the release once it has taken place." },
-  "funding-approval-recorded": { text: "Your approval was recorded. Funding remains pending until all three required officer approvals are recorded." },
   "funding-released": { text: "Release recorded. The volunteer can now submit their report." },
   "funding-state": { text: "This request is no longer eligible for that action. Check its current status.", error: true },
   "funding-invalid": { text: "Enter a positive amount, a valid currency code, and a release date up to today.", error: true },
@@ -26,7 +25,6 @@ export default async function AdminFundingRequests({ status, officerTitle }: { s
   return (
     <section className="panel scroll-mt-5" aria-labelledby="admin-funding" id="admin-funding-panel">
       <h2 id="admin-funding" className="panel-title">Funding requests</h2>
-      <p className="mt-2 text-sm text-ink-soft">Review budgets, approve requests, and record payments after they are released.</p>
       {message && (
         <p role={message.error ? "alert" : "status"} className={`mt-3 text-sm font-semibold ${message.error ? "text-red-700" : "text-blue"}`}>
           {message.text}

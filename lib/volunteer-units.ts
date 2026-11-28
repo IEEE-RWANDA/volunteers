@@ -174,16 +174,29 @@ export async function designateUnitLead(email: string, unitId: string) {
 }
 
 export async function awardUnitBadge(email: string, unitId: string, label: string) {
-  await saveOnce(`volunteer-unit-badges/${hash(JSON.stringify([email, unitId, label.toLowerCase()]))}.json`, { email, unitId, label });
+  if ((await unitBadges()).some(badge => badge.email === email && badge.unitId === unitId && badge.label.toLowerCase() === label.toLowerCase())) return;
+  let id = hash(JSON.stringify([email, unitId, label.toLowerCase()]));
+  // Edited assignments retain their original ID, so it may now belong to another volunteer or title.
+  if (await readIntakeJson(`volunteer-unit-badges/${id}.json`)) id = hash(randomUUID());
+  await saveOnce(`volunteer-unit-badges/${id}.json`, { email, unitId, label });
 }
 
-export async function editUnitBadge(id: string, label: string) {
+export async function editUnitBadge(id: string, label: string, email?: string) {
   if (!/^[a-f0-9]{64}$/.test(id)) return false;
   const path = `volunteer-unit-badges/${id}.json`;
   const badge = await readIntakeJson<Omit<UnitBadge, "id">>(path);
   if (!badge) return false;
-  await saveIntakeFile(path, JSON.stringify({ ...badge, label }), true);
+  await saveIntakeFile(path, JSON.stringify({ ...badge, label, email: email ?? badge.email }), true);
   return true;
+}
+
+export function unitAssignmentTitles(unitId: string, roles: { unitId: string; title: string }[], badges: { unitId: string; label: string }[]) {
+  const titles = new Map(["Chair", "Vice Chair", "Secretary", "Treasurer"].map(title => [title.toLowerCase(), title]));
+  for (const title of [...roles.filter(item => item.unitId === unitId).map(item => item.title), ...badges.filter(item => item.unitId === unitId).map(item => item.label)]) {
+    const key = title.trim().toLowerCase();
+    if (key && key !== "unit chair" && !titles.has(key)) titles.set(key, title.trim());
+  }
+  return [...titles.values()];
 }
 
 export async function postUnitRole(unitId: string, title: string, description: string) {

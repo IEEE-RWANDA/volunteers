@@ -20,6 +20,8 @@ import VolunteerUnits from "./VolunteerUnits";
 import { roster } from "@/lib/volunteer-roster";
 import VolunteerHours from "./VolunteerHours";
 import TeamView from "./TeamView";
+import AdminEvents from "./AdminEvents";
+import { calendarReviewAccess } from "@/lib/calendar-reviewers";
 import FundingReports, { ReleasedFunds } from "./FundingReports";
 import { fundingReportStatuses } from "@/lib/funding-reports";
 import VolunteerFundingSummary from "./VolunteerFundingSummary";
@@ -38,13 +40,14 @@ export type DashboardParams = { section?: string; hours?: string; profile?: stri
 export default async function Dashboard({ email, params }: { email: string; params: DashboardParams }) {
   const { section, hours, profile, unitStatus, team, report, request, fund, tab } = params;
   const access = await getTeamAccess();
+  const calendarAccess = await calendarReviewAccess(email);
   const sessionCookies = await cookies();
   const avatar = googleAvatarUrl(sessionCookies.get(googleAvatarCookie)?.value);
   const googleName = googleDisplayName(sessionCookies.get(googleDisplayNameCookie)?.value);
-  if (section === "team" && !access) redirect("/");
+  if (section === "team" && !access && !calendarAccess.canReview) redirect("/");
   const navigation = access
     ? [...baseNavigation, { id: "team", label: access.role === "admin" ? "Admin" : "My team", href: "/?section=team" } as const]
-    : baseNavigation;
+    : calendarAccess.canReview ? [...baseNavigation, { id: "team", label: "Event review", href: "/?section=team" } as const] : baseNavigation;
   const current = navigation.find(item => item.id === section) ?? navigation[0];
   const volunteerTab = tab === "roles" || tab === "directory" || tab === "organizations" ? tab
     : unitStatus && !tab ? "organizations" : "profile";
@@ -192,6 +195,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                   ) : <VolunteerHours email={email} status={hours} profileStatus={profile} avatar={avatar} googleName={googleName} />}
               </>
             ) :
+              current.id === "team" && calendarAccess.canReview && access?.role !== "admin" ? <AdminEvents viewer={email} status={team} /> :
               current.id === "team" && access ? <TeamView access={access} status={team} /> : (
                 <div className="space-y-5"><section className="panel">
                     <h2 className="panel-title">Event/activity submission</h2>
