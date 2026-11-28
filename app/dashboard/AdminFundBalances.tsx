@@ -1,3 +1,4 @@
+import ActionModal from "./ActionModal";
 import FundReleaseHistory from "./FundReleaseHistory";
 import FundBalanceTabs from "./FundBalanceTabs";
 import { treasuryReleaseHistory } from "@/lib/treasury-release-history";
@@ -54,8 +55,18 @@ export default async function AdminFundBalances({ email, status }: { email: stri
                 <td className="whitespace-nowrap px-3 py-3 text-right">{formatUsd(row.incoming)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right">{formatUsd(row.released)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-semibold ${row.balance < 0 ? "text-red-700" : "text-navy"}`}>{formatUsd(row.balance)}</td>
-                <td className="min-w-56 px-3 py-3">
+                <td className="min-w-44 px-3 py-3">
+                  {assigned?.volunteerEmail && (
+                    <div className="mb-2 text-sm">
+                      <p>{volunteers.find(person => person.email === assigned.volunteerEmail)?.name ?? assigned.volunteerEmail}</p>
+                      {assigned.unitName && <p className="mt-1 text-xs text-ink-soft">{units.find(unit => unit.id === assigned.unitId)?.label ?? assigned.unitName}</p>}
+                    </div>
+                  )}
                   {row.incoming > 0 && row.balance > 0 ? (
+                    <ActionModal compact icon={assigned?.volunteerEmail ? "edit" : "plus"}
+                      label={`${assigned?.volunteerEmail ? "Edit assignment for" : "Assign funds from"} ${row.name}`}
+                      title={assigned?.volunteerEmail ? "Edit fund assignment" : "Assign funds"}>
+                    <p className="mb-4 text-sm text-ink-soft">{row.name}</p>
                     <form action={assignBalanceFund} aria-label={`Assign ${row.name}`} className="space-y-2">
                       <input type="hidden" name="rowId" value={row.id} />
                       <label className="block text-xs font-semibold">Volunteer
@@ -70,8 +81,9 @@ export default async function AdminFundBalances({ email, status }: { email: stri
                           {units.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
                         </select>
                       </label>
-                      <button type="submit" className="btn btn-primary">{assigned ? "Update assignment" : "Assign"}</button>
+                      <button type="submit" className="btn btn-primary">{assigned?.volunteerEmail ? "Save" : "Assign"}</button>
                     </form>
+                    </ActionModal>
                   ) : <span className="text-ink-soft">No available balance</span>}
                 </td>
               </tr>
