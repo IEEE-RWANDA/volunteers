@@ -54,7 +54,7 @@ export function validateEventAllocations(eventIds: string[], amounts: string[], 
   return allocations;
 }
 
-export function validReleaseEventEdit(release: ReleaseHistoryRow, allocations: { eventId: string; cents: number }[]) {
+export function validReleaseEventEdit(release: Pick<ReleaseHistoryRow, "amount" | "eventId" | "historicalSplitAllowed">, allocations: { eventId: string; cents: number }[]) {
   if (release.historicalSplitAllowed) return true;
   const total = releaseAmountCents(release.amount);
   return allocations.length === 1 && allocations[0].eventId === release.eventId && allocations[0].cents === total;

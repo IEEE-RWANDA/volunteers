@@ -5,9 +5,9 @@ import { revalidatePath } from "next/cache";
 import { getTeamAccess } from "@/lib/session";
 import { assignTreasuryFund } from "@/lib/treasury-assignments";
 import { treasuryHistoryOwner } from "./TreasuryHistory";
-import { treasuryReleaseHistory } from "@/lib/treasury-release-history";
+import { releaseEditContext } from "@/lib/treasury-release-edit";
 import { releaseAmountCents, validateEventAllocations, validReleaseEventEdit } from "@/lib/release-history-filters";
-import { saveIntakeFile, volunteerEvents } from "@/lib/volunteer-store";
+import { saveIntakeFile } from "@/lib/volunteer-store";
 
 export async function assignReleaseEvent(form: FormData) {
   const access = await getTeamAccess();
@@ -15,11 +15,12 @@ export async function assignReleaseEvent(form: FormData) {
   let status = "release-event-invalid";
   try {
     const releaseId = String(form.get("releaseId") ?? "");
-    const [releases, events] = await Promise.all([treasuryReleaseHistory(), volunteerEvents()]);
-    const release = releases.find(row => row.id === releaseId);
+    const eventIds = form.getAll("eventId").map(String);
+    const context = await releaseEditContext(releaseId, eventIds);
+    const release = context?.release;
     const actor = String(form.get("actor") ?? release?.actor ?? "unknown");
-    const eventAllocations = validateEventAllocations(form.getAll("eventId").map(String), form.getAll("amount").map(String),
-      release ? releaseAmountCents(release.amount) : null, new Set(events.map(event => event.id)));
+    const eventAllocations = validateEventAllocations(eventIds, form.getAll("amount").map(String),
+      release ? releaseAmountCents(release.amount) : null, new Set(context?.events ?? []));
     if (release && eventAllocations && validReleaseEventEdit(release, eventAllocations) && ["kip", "cyiza", "unknown"].includes(actor)) {
       await saveIntakeFile(`release-event-links/${releaseId}.json`, JSON.stringify({ releaseId, eventAllocations, actor,
         recordedBy: access.email, recordedAt: new Date().toISOString() }), true);

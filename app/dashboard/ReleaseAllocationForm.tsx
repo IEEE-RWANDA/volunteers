@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { formatUsd } from "@/lib/fund-amounts";
 import { releaseAmountCents, validateEventAllocations, type ReleaseHistoryRow } from "@/lib/release-history-filters";
+
+function SaveReleaseButton({ valid }: { valid: boolean }) {
+  const { pending } = useFormStatus();
+  return <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={!valid || pending} aria-busy={pending}>{pending ? "Saving…" : "Save"}</button>;
+}
 
 export default function ReleaseAllocationForm({ release, events, action }: {
   release: ReleaseHistoryRow;
@@ -47,6 +53,6 @@ export default function ReleaseAllocationForm({ release, events, action }: {
     </div>
     {total === null && <p role="alert" className="text-sm text-red-700">A verified USD release amount is required before allocating funds.</p>}
     {!valid && <p role="alert" className="text-sm text-red-700">Choose a different event for each allocation and enter positive amounts within the release total.</p>}
-    <button type="submit" className="btn btn-primary" disabled={!valid}>Save</button>
+    <SaveReleaseButton valid={valid} />
   </form>;
 }

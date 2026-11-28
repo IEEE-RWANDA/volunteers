@@ -31,7 +31,7 @@ export default function FundReleaseHistory({ rows, assignmentControls = {} }: { 
             <option value="transfer-kip">Released by me</option>
             <option value="transfer-cyiza">Released by Cyiza</option>
             <option value="card-cyiza">Cyiza’s card</option>
-            <option value="card-kip">My card</option>
+            <option value="card-kip">Kip’s card</option>
             <option value="transfer-unknown">Unverified transfers</option>
           </select>
         </label>
