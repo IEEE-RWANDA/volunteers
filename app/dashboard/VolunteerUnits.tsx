@@ -101,7 +101,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
                 group.type === "branch" ? (
                   <StudentBranchTabs branches={groupUnits.map(unit => ({ id: unit.id, name: unit.name, logo: <UnitLogo unit={unit} /> }))} panels={cards} />
                 ) : (
-                  <ul className="mt-3 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">{cards}</ul>
+                  <ul className="mt-3 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">{cards}</ul>
                 )
               ) : <p className="mt-2 text-sm text-ink-soft">{group.empty}</p>}
             </section>
@@ -113,7 +113,7 @@ export default async function VolunteerUnits({ members, viewer, admin = false, s
 
   function organizationModal(unit: (typeof units)[number]) {
     return <ActionModal label={`Open ${unit.name}`} title={unit.name} icon="person"
-      triggerClassName="flex w-full items-start gap-3 rounded-md text-left hover:bg-paper-2 focus-visible:outline-2 focus-visible:outline-blue"
+      triggerClassName="flex min-h-16 w-full items-start gap-3 rounded-md text-left hover:bg-paper-2 focus-visible:outline-2 focus-visible:outline-blue"
       trigger={<><UnitLogo unit={unit} /><span className="min-w-0 grow"><span className="block wrap-anywhere font-semibold text-navy">{unit.name}</span><span className="mt-0.5 block text-xs text-ink-soft">{unitTypes[unit.type]}</span></span></>}>
       <p className="mb-3 text-sm text-ink-soft">{unitTypes[unit.type]}</p>
       {unitActions(unit)}
