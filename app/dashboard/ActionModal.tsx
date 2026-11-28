@@ -39,7 +39,7 @@ export default function ActionModal({ label, title, icon, children, tone = "defa
       <dialog
         ref={dialog}
         aria-labelledby={id}
-        className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-line bg-paper p-0 text-ink shadow-xl backdrop:bg-black/45"
+        className="m-auto w-[calc(100%-2rem)] max-w-lg wrap-anywhere whitespace-normal rounded-xl border border-line bg-paper p-0 text-left text-ink shadow-xl backdrop:bg-black/45"
       >
         <div className="max-h-[85dvh] overflow-y-auto p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
