@@ -1,3 +1,4 @@
+import FundBalancesTable from "./FundBalancesTable";
 import ActionModal from "./ActionModal";
 import FundReleaseHistory from "./FundReleaseHistory";
 import FundBalanceTabs from "./FundBalanceTabs";
@@ -15,37 +16,23 @@ export default async function AdminFundBalances({ email, status }: { email: stri
   const [{ rows, warnings }, releases, volunteers, units, funds] = await Promise.all([
     treasuryBalances(), treasuryReleaseHistory(), roster(), volunteerUnits(), listedFunds(),
   ]);
-  const totals = rows.reduce((sum, row) => ({
-    incoming: sum.incoming + row.incoming,
-    released: sum.released + row.released,
-    balance: sum.balance + row.balance,
-  }), { incoming: 0, released: 0, balance: 0 });
+
+  const filterVolunteers = new Map(volunteers.map(person => [person.email, person.name]));
+  for (const fund of funds) {
+    if (fund.volunteerEmail && !filterVolunteers.has(fund.volunteerEmail)) filterVolunteers.set(fund.volunteerEmail, fund.volunteerEmail);
+  }
 
   return (
     <section className="panel" aria-labelledby="fund-balances">
       <h2 id="fund-balances" className="panel-title">Fund balances</h2>
-      {status === "fund-assigned" && <p role="status" className="mt-2 text-sm text-blue">Fund assigned to the selected volunteer and unit.</p>}
       {status === "fund-assignment-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Select an existing volunteer and unit for a fund with an available balance.</p>}
       {status === "fund-assignment-write" && <p role="alert" className="mt-2 text-sm text-red-700">The assignment could not be saved. Refresh and check the current assignment before retrying.</p>}
       <FundBalanceTabs balances={<>
       {warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm text-red-700">{warning}</p>)}
-      <div className="mt-4 scrollable-table" role="region" aria-label="Fund balances table" tabIndex={0}>
-        <table className="w-full min-w-[60rem] text-left text-sm">
-          <thead className="border-b border-line bg-paper-2 text-navy">
-            <tr>
-              <th scope="col" className="px-3 py-2">Funding source</th>
-              <th scope="col" className="px-3 py-2">Received</th>
-              <th scope="col" className="px-3 py-2 text-right">Incoming</th>
-              <th scope="col" className="px-3 py-2 text-right">Released</th>
-              <th scope="col" className="px-3 py-2 text-right">Balance</th>
-              <th scope="col" className="px-3 py-2">Assign funds</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {rows.map(row => {
+      <FundBalancesTable volunteers={[...filterVolunteers].map(([id, label]) => ({ id, label }))} units={units.map(unit => ({ id: unit.id, label: unit.label }))} rows={rows.map(row => {
               const assigned = funds.find(fund => fund.id === row.id || fund.treasuryRowId === row.id);
-              return (
-              <tr key={row.id} className="align-top">
+              return { ...row, volunteerEmail: assigned?.volunteerEmail, unitId: assigned?.unitId, content: (
+              <tr key={row.id} className={`align-top ${row.balance < 0 ? "bg-red-50" : row.balance === 0 ? "bg-green-50" : row.released > 0 ? "bg-yellow-50" : ""}`}>
                 <th scope="row" className="wrap-anywhere px-3 py-3 font-normal">
                   {row.name}
                   {row.reference && <p className="mt-1 text-xs text-ink-soft">{row.reference}</p>}
@@ -86,21 +73,8 @@ export default async function AdminFundBalances({ email, status }: { email: stri
                   ) : <span className="text-ink-soft">No available balance</span>}
                 </td>
               </tr>
-              );
-            })}
-          </tbody>
-          <tfoot className="border-t border-line font-semibold text-navy">
-            <tr>
-              <th scope="row" colSpan={2} className="px-3 py-3">Total</th>
-              <td className="px-3 py-3 text-right">{formatUsd(totals.incoming)}</td>
-              <td className="px-3 py-3 text-right">{formatUsd(totals.released)}</td>
-              <td className="px-3 py-3 text-right">{formatUsd(totals.balance)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      {!rows.length && <p className="mt-3 text-sm text-ink-soft">No funding ledger has been imported.</p>}
+              ) };
+            })} />
       </>} releases={<FundReleaseHistory rows={releases} />} />
     </section>
   );
