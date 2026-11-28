@@ -216,7 +216,8 @@ export async function POST(request: Request) {
   const eventPoster = filesFrom(form, "eventPoster");
   const extraFiles = filesFrom(form, "attachments");
   const files = [...budget, ...invoice, ...approvalEmail, ...eventPoster];
-  if (kind === "event" && files.length + extraFiles.length) return bad("Event submissions do not accept attachments.");
+  if (kind === "event" && (budget.length || invoice.length || approvalEmail.length || extraFiles.length || eventPoster.length > 1)) return bad("Attach one JPG or PNG event poster only.");
+  if (kind === "event" && eventPoster.length && field("removeEventPoster") === "yes") return bad("Choose a replacement poster or remove the existing poster.");
   if (kind === "funding" && (budget.length !== 1 || !invoice.length || approvalEmail.length !== 1 || eventPoster.length !== 1 || extraFiles.length)) {
     return bad("Attach the funding approval email, budget, invoices, and event poster.");
   }
@@ -227,9 +228,9 @@ export async function POST(request: Request) {
   for (const [index, file] of files.entries()) {
     const name = cleanName(file);
     const bytes = Buffer.from(await file.arrayBuffer());
-    const extensions = index === 0 ? /\.xlsx$/i : /\.(pdf|png|jpe?g)$/i;
+    const extensions = kind === "event" ? /\.(png|jpe?g)$/i : index === 0 ? /\.xlsx$/i : /\.(pdf|png|jpe?g)$/i;
     if (!extensions.test(name) || !supportedFile(name, bytes)) {
-      return bad("Use XLSX for the budget and PDF or images for the other documents.");
+      return bad(kind === "event" ? "Use a JPG or PNG image for the event poster." : "Use XLSX for the budget and PDF or images for the other documents.");
     }
     const label = index === 0 ? "Budget expense sheet" : index <= invoice.length ? "Invoice" : index === invoice.length + 1 ? "Funding approval email" : "Event poster";
     uploads.push({ name, bytes, label });
@@ -241,19 +242,30 @@ export async function POST(request: Request) {
     ...(kind === "event" ? { end, location, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, attachmentLabels: uploads.map(upload => upload.label), receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
+  const poster = kind === "event" && uploads.length ? { id: randomUUID(), name: uploads[0].name, type: (/\.png$/i.test(uploads[0].name) ? "image/png" : "image/jpeg") as "image/png" | "image/jpeg" } : undefined;
+  if (kind === "event") {
+    record.eventPoster = poster;
+    record.attachments = [];
+  }
   if (editing) {
+    const posterPath = poster ? `event-posters/${poster.id}` : undefined;
     try {
-      const updated = { ...editing, title, email, committee, details, date, end, location, organizers, vtools, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: record.vtoolsAcknowledgedAt };
-      if (!await saveEventRevision(updated, baseRevision)) return bad("This event was updated elsewhere. Reload it before saving again.", 409);
+      if (posterPath) await saveIntakeFile(posterPath, uploads[0].bytes);
+      const updated = { ...editing, eventPoster: poster ?? (field("removeEventPoster") === "yes" ? undefined : editing.eventPoster), title, email, committee, details, date, end, location, organizers, vtools, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: record.vtoolsAcknowledgedAt };
+      if (!await saveEventRevision(updated, baseRevision)) {
+        if (posterPath) await removeIntakeFiles([posterPath]);
+        return bad("This event was updated elsewhere. Reload it before saving again.", 409);
+      }
       return Response.json({ id: editing.id, revision: baseRevision + 1 }, { status: 200 });
     } catch {
+      // A revision may have committed before a storage response failed; retain its poster.
       return bad("Your event changes could not be saved. Please try again.", 503);
     }
   }
   const saved: string[] = [];
   try {
     for (const [index, { bytes }] of uploads.entries()) {
-      const path = `files/${id}/${index}`;
+      const path = poster ? `event-posters/${poster.id}` : `files/${id}/${index}`;
       await saveIntakeFile(path, bytes);
       saved.push(path);
     }

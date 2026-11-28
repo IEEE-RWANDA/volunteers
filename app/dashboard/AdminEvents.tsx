@@ -65,7 +65,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
       {events.length ? (
         <>
           {permission.canReview && (
-            <p className="mt-3 text-sm text-ink-soft">Approval makes the event title, description, schedule, venue and vTools link visible on the IEEE Rwanda Events page. Publishing also adds or updates the public calendar.{!calendarConfigured() && " Calendar owner connection required before publishing."}</p>
+            <p className="mt-3 text-sm text-ink-soft">Approval makes the event title, description, schedule, venue, poster and vTools link visible on the IEEE Rwanda Events page. Publishing also adds or updates the public calendar.{!calendarConfigured() && " Calendar owner connection required before publishing."}</p>
           )}
           <div className="mt-4 scrollable-table" role="region" aria-labelledby="admin-events" tabIndex={0}>
             <table className="w-full min-w-[48rem] text-left text-sm">
@@ -88,6 +88,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
                       <ActionModal label={`View ${event.title}`} title={event.title} icon="role" trigger={<span>{event.title}</span>}>
                         <div className="space-y-4 text-sm font-normal">
+                          {event.eventPoster && <a href={`/api/public-events/${event.id}/poster/${event.eventPoster.id}`} className="action-link" target="_blank" rel="noopener noreferrer">View submitted poster</a>}
                           <div><h3 className="font-semibold text-navy">Description</h3><p className="mt-1 whitespace-pre-wrap wrap-anywhere text-ink-soft">{event.details || "Not provided"}</p></div>
                           {state.updating && !state.published && <p className="rounded-md bg-amber-50 p-3 text-amber-900">These are the revised details. The public calendar keeps the previous published version until this update is approved and published.</p>}
                           <div className="overflow-hidden rounded-lg border border-line">

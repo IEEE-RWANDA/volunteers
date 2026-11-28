@@ -79,7 +79,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
     }
     const files = ["budget", "invoice", "approvalEmail", "eventPoster"].flatMap(key => data.getAll(key)).filter((item): item is File => item instanceof File && item.size > 0);
     if (files.length > fundingRequestAttachmentCount || files.reduce((total, file) => total + file.size, 0) > attachmentLimit) {
-      setResult({ error: "Attach up to three invoices. All uploads must total 4 MB or less." });
+      setResult({ error: funding ? "Attach up to three invoices. All uploads must total 4 MB or less." : "The event poster must be 4 MB or less." });
       return;
     }
 
@@ -220,6 +220,17 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             Intended use of funds
             <textarea name="intendedUse" rows={3} className={field} maxLength={1000} placeholder="Briefly describe what the requested funds will cover." required />
           </label>}
+          {!funding && <div className="space-y-2">
+            <label className="block font-semibold">Event poster (optional)
+              <input name="eventPoster" type="file" className={field} accept=".png,.jpg,.jpeg" />
+            </label>
+            <p className="text-ink-soft">JPG or PNG, up to 4 MB. The poster appears on the public Events page after approval. Without a poster, the IEEE Rwanda event cover is used.</p>
+            {editing?.record.eventPoster && <>
+              <a href={`/api/public-events/${editing.record.id}/poster/${editing.record.eventPoster.id}`} target="_blank" rel="noopener noreferrer" className="action-link">View current poster</a>
+              <label className="flex items-center gap-2"><input type="checkbox" name="removeEventPoster" value="yes" />Use the default cover instead</label>
+              <p className="text-ink-soft">Leave the upload empty to keep the current poster, or choose an image to replace it.</p>
+            </>}
+          </div>}
           {!funding && <label className="block font-semibold">
             Event or activity description
             <textarea name="details" defaultValue={editing?.record.details} rows={4} className={field} maxLength={4000} required />

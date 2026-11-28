@@ -30,6 +30,7 @@ export type Submission = {
   fundingEventId?: string;
   eventVolunteerEmails?: string[];
   eventCommitteeEmails?: string[];
+  eventPoster?: { id: string; name: string; type: "image/png" | "image/jpeg" };
   revision?: number;
   editedAt?: string;
   details: string;

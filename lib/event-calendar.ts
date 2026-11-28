@@ -4,7 +4,7 @@ import { readIntakeJson, saveIntakeFile, submissionIdPattern, volunteerEvents } 
 import type { Submission } from "./volunteer-intake";
 
 export const publicCalendarId = "c641c957c33ea9aff8bf76e246e6cd6228a835f2d015ec29d7cf92ff55eb7f60@group.calendar.google.com";
-export type PublicEvent = { id: string; title: string; description: string; startsAt: string; endsAt: string; location: string; url: string };
+export type PublicEvent = { id: string; title: string; description: string; startsAt: string; endsAt: string; location: string; url: string; posterUrl?: string };
 export type CalendarDecision = { approvedBy: string; approvedAt: string; fingerprint: string; publicEvent?: PublicEvent; publishedFingerprint?: string; publishedBy?: string; publishedAt?: string; calendarEventId?: string; calendarUrl?: string };
 const pathFor = (id: string) => `event-calendar-decisions/${id}.json`;
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -54,7 +54,7 @@ export function calendarEventState(event: Submission, decision: CalendarDecision
 
 function publicEventDetails(event: Submission): PublicEvent {
   calendarEventPayload(event);
-  return { id: event.id, title: event.title, description: event.details, startsAt: event.date, endsAt: event.end!, location: event.location!, url: event.vtools! };
+  return { id: event.id, title: event.title, description: event.details, startsAt: event.date, endsAt: event.end!, location: event.location!, url: event.vtools!, ...(event.eventPoster ? { posterUrl: `https://volunteers.ieeerwanda.org/api/public-events/${event.id}/poster/${event.eventPoster.id}` } : {}) };
 }
 
 export async function approvedPublicEvents() {
@@ -63,8 +63,8 @@ export async function approvedPublicEvents() {
     const decision = await eventCalendarDecision(event.id);
     if (!decision) return null;
     if (decision.publicEvent) {
-      const { id, title, description, startsAt, endsAt, location, url } = decision.publicEvent;
-      return { id, title, description, startsAt, endsAt, location, url };
+      const { id, title, description, startsAt, endsAt, location, url, posterUrl } = decision.publicEvent;
+      return { id, title, description, startsAt, endsAt, location, url, ...(posterUrl ? { posterUrl } : {}) };
     }
     // Legacy approvals have no snapshot; only expose a version whose reviewed fingerprint still matches.
     for (const candidate of [event, await readIntakeJson<Submission>(`records/${event.id}.json`)]) {
