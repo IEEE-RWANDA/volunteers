@@ -1,8 +1,11 @@
 "use client";
 
+import useFormDraft from "./useFormDraft";
+import { draftKey } from "@/lib/browser-drafts";
+import type { EventBudget } from "@/lib/event-budget";
 import EventBudgetFields from "./EventBudgetFields";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
 import type { FundBalance } from "@/lib/listed-funds";
 import RequestPicker from "./RequestPicker";
@@ -13,6 +16,8 @@ const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper 
 
 export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; unitId?: string; fundingBlockedReason?: string | null }[] }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [restoredBudget, setRestoredBudget] = useState<EventBudget>();
   const [budgetVersion, setBudgetVersion] = useState(0);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
@@ -20,6 +25,16 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   const [selectedFunds, setSelectedFunds] = useState<string[]>(initialFund ? [initialFund] : []);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
   const [activityId, setActivityId] = useState("");
+  const draft = useFormDraft(draftKey(contactEmail, kind), formRef,
+    () => ({ selection, selectedFunds, fundAmounts, activityId }), saved => {
+      const state = saved.state as { selection?: string[]; selectedFunds?: string[]; fundAmounts?: Record<string, string>; activityId?: string };
+      setSelection((state.selection ?? []).filter(id => organizers.some(person => person.id === id)));
+      setSelectedFunds((state.selectedFunds ?? []).filter(id => funds.some(fund => fund.id === id)));
+      setFundAmounts(state.fundAmounts ?? {});
+      setActivityId(activities.some(activity => activity.id === state.activityId) ? state.activityId! : "");
+      const budget = saved.entries.find(([name]) => name === "eventBudget")?.[1];
+      if (typeof budget === "string") { setRestoredBudget(JSON.parse(budget)); setBudgetVersion(version => version + 1); }
+    });
   const activity = activities.find(item => item.id === activityId);
   const funding = kind === "funding";
   const committees = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].sort();
@@ -75,7 +90,9 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
         setResult({ error: body.error ?? "The submission could not be saved. Please try again." });
         return;
       }
+      await draft.clear();
       form.reset();
+      setRestoredBudget(undefined);
       setActivityId("");
       setSelection([]);
       setSelectedFunds([]);
@@ -91,9 +108,11 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
   }
 
   return (
-    <form onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event/activity submission"}>
+    <form ref={formRef} onChange={draft.changed} onClick={draft.changed} onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event/activity submission"}>
+      <p role="status" className="text-sm text-ink-soft">{draft.status}</p>
+      <fieldset disabled={!draft.ready} className="contents">
       <input type="hidden" name="kind" value={kind} />
-      {!funding && <section className="rounded-xl border border-line p-4"><h3 className="mb-4 font-semibold">Event budget</h3><EventBudgetFields key={budgetVersion} totalOnly /></section>}
+      {!funding && <section className="rounded-xl border border-line p-4"><h3 className="mb-4 font-semibold">Event budget</h3><EventBudgetFields key={budgetVersion} initial={restoredBudget} totalOnly /></section>}
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
           {funding && <h3 className="font-display text-lg font-bold text-navy">Activity and funding details</h3>}
@@ -273,6 +292,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           Submission saved. Reference <strong>{result.id}</strong>. View it in Overview.
         </p>
       )}
+      </fieldset>
     </form>
   );
 }
