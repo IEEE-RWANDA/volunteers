@@ -1,3 +1,4 @@
+import { publicEventDescription, eventTreasuryNotes } from "@/lib/event-descriptions";
 import { receiptDriveEnabled, trashDriveReceipt, uploadDriveReceipt } from "@/lib/receipt-drive";
 import { randomUUID } from "node:crypto";
 import { attachmentCount, attachmentLimit, fundingRequestAttachmentCount, type Organizer, type Submission } from "@/lib/volunteer-intake";
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
   let committee = field("committee");
   let eventVolunteerEmails: string[] | undefined;
   const eventUnitId = field("eventUnitId");
-  const details = activity ? activity.details ?? "" : field("details");
+  const details = activity ? publicEventDescription(activity) : field("details");
   const intendedUse = kind === "funding" ? field("intendedUse") : undefined;
   if (kind === "funding" && (!intendedUse || intendedUse.length > 1000)) {
     return bad("Briefly describe the intended use of funds (up to 1,000 characters).");
@@ -239,7 +240,7 @@ export async function POST(request: Request) {
   const id = randomUUID();
   const record: Submission = {
     id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools, intendedUse,
-    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, attachmentLabels: uploads.map(upload => upload.label), receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    ...(kind === "event" ? { publicDescription: details, end, location, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, attachmentLabels: uploads.map(upload => upload.label), receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const poster = kind === "event" && uploads.length ? { id: randomUUID(), name: uploads[0].name, type: (/\.png$/i.test(uploads[0].name) ? "image/png" : "image/jpeg") as "image/png" | "image/jpeg" } : undefined;
@@ -251,7 +252,7 @@ export async function POST(request: Request) {
     const posterPath = poster ? `event-posters/${poster.id}` : undefined;
     try {
       if (posterPath) await saveIntakeFile(posterPath, uploads[0].bytes);
-      const updated = { ...editing, eventPoster: poster ?? (field("removeEventPoster") === "yes" ? undefined : editing.eventPoster), title, email, committee, details, date, end, location, organizers, vtools, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: record.vtoolsAcknowledgedAt };
+      const updated = { ...editing, publicDescription: details, treasuryNotes: eventTreasuryNotes(editing) || undefined, eventPoster: poster ?? (field("removeEventPoster") === "yes" ? undefined : editing.eventPoster), title, email, committee, details, date, end, location, organizers, vtools, eventVolunteerEmails, eventCommitteeEmails: committeeMembers.map(member => member.email), eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: record.vtoolsAcknowledgedAt };
       if (!await saveEventRevision(updated, baseRevision)) {
         if (posterPath) await removeIntakeFiles([posterPath]);
         return bad("This event was updated elsewhere. Reload it before saving again.", 409);

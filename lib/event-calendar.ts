@@ -1,6 +1,7 @@
+import { publicEventDescription, eventTreasuryNotes } from "./event-descriptions";
 import { createHash } from "node:crypto";
 import { calendarReviewAccess } from "./calendar-reviewers";
-import { readIntakeJson, saveIntakeFile, submissionIdPattern, volunteerEvents } from "./volunteer-store";
+import { readIntakeJson, saveIntakeFile, submissionIdPattern, volunteerEvent, volunteerEvents } from "./volunteer-store";
 import type { Submission } from "./volunteer-intake";
 
 export const publicCalendarId = "c641c957c33ea9aff8bf76e246e6cd6228a835f2d015ec29d7cf92ff55eb7f60@group.calendar.google.com";
@@ -22,7 +23,7 @@ function calendarTime(value: string | undefined) {
 }
 
 export function calendarEventPayload(event: Submission) {
-  if (!event.title.trim() || !event.location?.trim() || !event.details.trim() || !event.vtools || !URL.canParse(event.vtools) || !["https:", "http:"].includes(new URL(event.vtools).protocol)) throw new Error("calendar-details");
+  if (!event.title.trim() || !event.location?.trim() || !publicEventDescription(event)?.trim() || !event.vtools || !URL.canParse(event.vtools) || !["https:", "http:"].includes(new URL(event.vtools).protocol)) throw new Error("calendar-details");
   const start = calendarTime(event.date);
   const end = calendarTime(event.end);
   if (Date.parse(end.dateTime) <= Date.parse(start.dateTime)) throw new Error("calendar-details");
@@ -30,7 +31,7 @@ export function calendarEventPayload(event: Submission) {
     id: digest("ieee-rwanda-portal:" + event.id),
     summary: event.title,
     location: event.location,
-    description: `${event.details}\n\nvTools event: ${event.vtools}`,
+    description: `${publicEventDescription(event)}\n\nvTools event: ${event.vtools}`,
     start, end,
     extendedProperties: { private: { portalActivityId: event.id, ...(event.revision ? { portalRevision: String(event.revision) } : {}) } },
   };
@@ -54,7 +55,7 @@ export function calendarEventState(event: Submission, decision: CalendarDecision
 
 function publicEventDetails(event: Submission): PublicEvent {
   calendarEventPayload(event);
-  return { id: event.id, title: event.title, description: event.details, startsAt: event.date, endsAt: event.end!, location: event.location!, url: event.vtools!, ...(event.eventPoster ? { posterUrl: `https://volunteers.ieeerwanda.org/api/public-events/${event.id}/poster/${event.eventPoster.id}` } : {}) };
+  return { id: event.id, title: event.title, description: publicEventDescription(event), startsAt: event.date, endsAt: event.end!, location: event.location!, url: event.vtools!, ...(event.eventPoster ? { posterUrl: `https://volunteers.ieeerwanda.org/api/public-events/${event.id}/poster/${event.eventPoster.id}` } : {}) };
 }
 
 export async function approvedPublicEvents() {
@@ -63,6 +64,8 @@ export async function approvedPublicEvents() {
     const decision = await eventCalendarDecision(event.id);
     if (!decision) return null;
     if (decision.publicEvent) {
+      const privateNotes = eventTreasuryNotes(event);
+      if (privateNotes && decision.publicEvent.description === privateNotes) return null;
       const { id, title, description, startsAt, endsAt, location, url, posterUrl } = decision.publicEvent;
       return { id, title, description, startsAt, endsAt, location, url, ...(posterUrl ? { posterUrl } : {}) };
     }
@@ -116,7 +119,7 @@ async function publishToGoogle(payload: ReturnType<typeof calendarEventPayload>,
 export async function reviewCalendarEvent(actor: string, id: string, action: "approve" | "publish") {
   if (!(await calendarReviewAccess(actor)).canReview) return "calendar-forbidden";
   if (!submissionIdPattern.test(id)) return "calendar-details";
-  const event = (await volunteerEvents()).find(event => event.id === id);
+  const event = await volunteerEvent(id);
   if (!event) return "calendar-details";
   try {
     const payload = calendarEventPayload(event);
@@ -128,7 +131,7 @@ export async function reviewCalendarEvent(actor: string, id: string, action: "ap
       return "calendar-approved";
     }
     if (!previous || previous.fingerprint !== fingerprint) return "calendar-approval-required";
-    const latest = (await volunteerEvents()).find(item => item.id === id);
+    const latest = await volunteerEvent(id);
     if (!latest || digest(JSON.stringify(calendarEventPayload(latest))) !== fingerprint) return "calendar-approval-required";
     const published = await publishToGoogle(payload, Boolean(previous.publishedAt));
     await saveIntakeFile(`event-calendar-publications/${id}.json`, JSON.stringify({ ...previous, publishedBy: actor, publishedAt: new Date().toISOString(), calendarEventId: published.id, calendarUrl: published.url }), true);

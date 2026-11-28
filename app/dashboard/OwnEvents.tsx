@@ -1,3 +1,5 @@
+import { eventForVolunteerForm, eventTreasuryNotes } from "@/lib/event-descriptions";
+import { treasuryHistoryOwner } from "./TreasuryHistory";
 import Link from "next/link";
 import VolunteerForm from "@/app/components/VolunteerForm";
 import { volunteerEvents } from "@/lib/volunteer-store";
@@ -29,8 +31,9 @@ export default async function OwnEvents({ email, editId, saved, organizers, even
     </section>}
     <section id="event-form" className="panel scroll-mt-24">
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="panel-title">{record ? "Edit event or activity" : "Event/activity submission"}</h2>{record && <Link className="action-link text-sm" href="/?section=events">Cancel editing</Link>}</div>
-      <VolunteerForm key={record ? `${record.id}:${record.revision ?? 0}` : "new-event"} kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits} editing={record ? { record, committeeIds, volunteerIds } : undefined} />
+      <VolunteerForm key={record ? `${record.id}:${record.revision ?? 0}` : "new-event"} kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits} editing={record ? { record: eventForVolunteerForm(record), committeeIds, volunteerIds } : undefined} />
     </section>
+    {record && email === treasuryHistoryOwner && eventTreasuryNotes(record) && <aside className="panel"><h2 className="panel-title">Private treasury notes</h2><p className="mt-3 whitespace-pre-wrap text-sm text-ink-soft">{eventTreasuryNotes(record)}</p></aside>}
     <aside className="panel"><h2 className="panel-title">Public calendar</h2><p className="my-3 text-ink-soft">Submissions go to IEEE Rwanda for review. Approved events and activities can be added to the public calendar.</p><a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a></aside>
   </div>;
 }

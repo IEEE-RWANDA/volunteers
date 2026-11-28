@@ -1,9 +1,12 @@
+import { publicEventDescription, eventTreasuryNotes } from "@/lib/event-descriptions";
+import { treasuryHistoryOwner } from "./TreasuryHistory";
 import { volunteerEvents } from "@/lib/volunteer-store";
 import { volunteerUnits } from "@/lib/volunteer-units";
 import { accountRoster } from "@/lib/session";
 import { calendarReviewAccess, calendarReviewers } from "@/lib/calendar-reviewers";
 import { updateCalendarReviewer } from "./calendar-review-actions";
-import { calendarConfigured, calendarEventState, eventCalendarDecision } from "@/lib/event-calendar";
+import { calendarEventState, eventCalendarDecision } from "@/lib/event-calendar";
+import EventSubmissionTable, { EventCalendarStatus } from "./EventSubmissionTable";
 import ActionModal from "./ActionModal";
 import CalendarEventActions from "./CalendarEventActions";
 
@@ -28,15 +31,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
 
   return (
     <section className="panel" aria-labelledby="admin-events">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 id="admin-events" className="panel-title">Event submissions</h2>
-          <p className="mt-2 text-sm text-ink-soft">Review submitted activities before calendar publication.</p>
-        </div>
-        {permission.canReview && (
-          <span className="rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">Calendar reviewer</span>
-        )}
-      </div>
+      <h2 id="admin-events" className="panel-title">Event submissions</h2>
       {calendarMessage && <p role={status === "calendar-approved" || status === "calendar-published" ? "status" : "alert"} className="mt-3 text-sm font-semibold text-navy">{calendarMessage}</p>}
       {permission.canManage && <details className="mt-4 rounded-md border border-line p-4">
         <summary className="cursor-pointer font-semibold text-blue">Calendar reviewers</summary>
@@ -64,32 +59,20 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
       </details>}
       {events.length ? (
         <>
-          {permission.canReview && (
-            <p className="mt-3 text-sm text-ink-soft">Approval makes the event title, description, schedule, venue, poster and vTools link visible on the IEEE Rwanda Events page. Publishing also adds or updates the public calendar.{!calendarConfigured() && " Calendar owner connection required before publishing."}</p>
-          )}
-          <div className="mt-4 scrollable-table" role="region" aria-labelledby="admin-events" tabIndex={0}>
-            <table className="w-full min-w-[48rem] text-left text-sm">
-              <thead className="border-b border-line bg-paper-2 text-navy">
-                <tr>
-                  <th scope="col" className="px-3 py-2">Activity</th>
-                  <th scope="col" className="px-3 py-2">Calendar status</th>
-                  <th scope="col" className="px-3 py-2">Schedule (CAT)</th>
-                  <th scope="col" className="px-3 py-2">Location</th>
-                  <th scope="col" className="px-3 py-2">Organizers</th>
-                  <th scope="col" className="px-3 py-2">vTools</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {events.map(event => {
+          <EventSubmissionTable rows={events.map(event => {
                   const decision = decisions.get(event.id);
                   const state = calendarEventState(event, decision);
-                  return (
+                  const description = publicEventDescription(event);
+                  const unit = unitNames.get(event.eventUnitId ?? "") ?? event.committee;
+                  const calendarStatus = state.published ? "Published" : state.approved ? state.updating ? "Update approved" : "Approved" : state.updating ? "Changes need review" : "Needs review";
+                  return { id: event.id, title: event.title, location: event.location ?? "", unit, lead: event.submittedBy, status: calendarStatus, content: (
                   <tr id={`activity-${event.id}`} className="scroll-mt-5 align-top target:bg-paper-2" key={event.id}>
                     <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
                       <ActionModal label={`View ${event.title}`} title={event.title} icon="role" trigger={<span>{event.title}</span>}>
                         <div className="space-y-4 text-sm font-normal">
                           {event.eventPoster && <a href={`/api/public-events/${event.id}/poster/${event.eventPoster.id}`} className="action-link" target="_blank" rel="noopener noreferrer">View submitted poster</a>}
-                          <div><h3 className="font-semibold text-navy">Description</h3><p className="mt-1 whitespace-pre-wrap wrap-anywhere text-ink-soft">{event.details || "Not provided"}</p></div>
+                          <div><h3 className="font-semibold text-navy">Public description</h3><p className="mt-1 whitespace-pre-wrap wrap-anywhere text-ink-soft">{description || "Public description required before approval"}</p></div>
+                          {viewer === treasuryHistoryOwner && eventTreasuryNotes(event) && <div className="rounded-md border border-line bg-paper-2 p-3"><h3 className="font-semibold text-navy">Private treasury notes</h3><p className="mt-1 whitespace-pre-wrap wrap-anywhere text-ink-soft">{eventTreasuryNotes(event)}</p></div>}
                           {state.updating && !state.published && <p className="rounded-md bg-amber-50 p-3 text-amber-900">These are the revised details. The public calendar keeps the previous published version until this update is approved and published.</p>}
                           <div className="overflow-hidden rounded-lg border border-line">
                             <table className="w-full table-fixed text-left text-sm" aria-label="Submitted event details">
@@ -117,12 +100,10 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                     </th>
                     <td className="px-3 py-3">
                       <div className="flex min-w-32 flex-col items-start gap-2.5">
-                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${state.published ? "bg-emerald-50 text-emerald-800" : state.approved ? "bg-sky-50 text-sky-800" : "bg-amber-50 text-amber-800"}`}>
-                          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-                          {state.published ? "Published" : state.approved ? state.updating ? "Update approved" : "Approved" : state.updating ? "Changes need review" : "Needs review"}
-                        </span>
+                        <EventCalendarStatus id={event.id} initial={calendarStatus} />
                         {decision?.calendarUrl && <a className="action-link inline-flex items-center gap-1 text-xs" href={decision.calendarUrl} target="_blank" rel="noreferrer">View in calendar <span aria-hidden="true">↗</span></a>}
-                        {permission.canReview && !state.published && <CalendarEventActions eventId={event.id} approved={state.approved} updating={state.updating} />}
+                        {!description?.trim() && <span className="text-xs text-amber-900">Public description required</span>}
+                        {permission.canReview && description?.trim() && !state.published && <CalendarEventActions eventId={event.id} approved={state.approved} updating={state.updating} />}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-ink-soft">
@@ -139,10 +120,7 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                       {event.vtools && <a className="action-link whitespace-nowrap" href={event.vtools} target="_blank" rel="noreferrer">vTools event</a>}
                     </td>
                   </tr>
-                );})}
-              </tbody>
-            </table>
-          </div>
+                ) };})} />
         </>
       ) : <p className="mt-4 text-sm text-ink-soft">No event submissions yet.</p>}
     </section>

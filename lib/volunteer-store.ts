@@ -193,6 +193,12 @@ export async function saveEventRevision(event: Submission, baseRevision: number)
   }
 }
 
+export async function volunteerEvent(id: string) {
+  if (!submissionIdPattern.test(id)) return null;
+  const record = await readIntakeJson<Submission>(`records/${id}.json`);
+  return record?.kind === "event" ? latestEventRevision(record) : null;
+}
+
 export async function ownVolunteerEvent(id: string, email: string) {
   if (!submissionIdPattern.test(id)) return null;
   const record = await readIntakeJson<Submission>(`records/${id}.json`);

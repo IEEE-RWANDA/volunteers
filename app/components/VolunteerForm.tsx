@@ -232,8 +232,9 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
             </>}
           </div>}
           {!funding && <label className="block font-semibold">
-            Event or activity description
-            <textarea name="details" defaultValue={editing?.record.details} rows={4} className={field} maxLength={4000} required />
+            Public event description
+            <textarea name="details" defaultValue={editing?.record.publicDescription ?? editing?.record.details} rows={4} className={field} maxLength={4000} required />
+            <span className="mt-1 block font-normal text-ink-soft">Describe the activity for the public website and calendar. Keep funding and reconciliation notes out of this field.</span>
           </label>}
         </div>
         {funding && (

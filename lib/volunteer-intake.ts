@@ -34,6 +34,8 @@ export type Submission = {
   revision?: number;
   editedAt?: string;
   details: string;
+  publicDescription?: string;
+  treasuryNotes?: string;
   intendedUse?: string;
   date: string;
   end?: string;
