@@ -2,8 +2,6 @@
 
 import useFormDraft from "./useFormDraft";
 import { draftKey } from "@/lib/browser-drafts";
-import type { EventBudget } from "@/lib/event-budget";
-import EventBudgetFields from "./EventBudgetFields";
 
 import { useRef, useState, type FormEvent } from "react";
 import { formatUsd, usdCents } from "@/lib/fund-amounts";
@@ -17,27 +15,26 @@ const field = "mt-1 block w-full min-w-0 rounded-md border border-line bg-paper 
 export default function VolunteerForm({ kind, contactEmail, organizers = [], funds = [], initialFund, eventUnits = [], activities = [] }: { kind: "event" | "funding"; contactEmail: string; organizers?: OrganizerOption[]; funds?: FundBalance[]; initialFund?: string; eventUnits?: { id: string; label: string }[]; activities?: { id: string; title: string; date: string; vtools: string; unitId?: string; fundingBlockedReason?: string | null }[] }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [restoredBudget, setRestoredBudget] = useState<EventBudget>();
-  const [budgetVersion, setBudgetVersion] = useState(0);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ id?: string; error?: string }>({});
+  const [organizationId, setOrganizationId] = useState("");
+  const [committeeSelection, setCommitteeSelection] = useState<string[]>([]);
   const [selection, setSelection] = useState<string[]>([]);
   const [selectedFunds, setSelectedFunds] = useState<string[]>(initialFund ? [initialFund] : []);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
   const [activityId, setActivityId] = useState("");
   const draft = useFormDraft(draftKey(contactEmail, kind), formRef,
-    () => ({ selection, selectedFunds, fundAmounts, activityId }), saved => {
-      const state = saved.state as { selection?: string[]; selectedFunds?: string[]; fundAmounts?: Record<string, string>; activityId?: string };
+    () => ({ selection, committeeSelection, selectedFunds, fundAmounts, activityId, organizationId }), saved => {
+      const state = saved.state as { selection?: string[]; committeeSelection?: string[]; selectedFunds?: string[]; fundAmounts?: Record<string, string>; activityId?: string; organizationId?: string };
+      setOrganizationId(eventUnits.some(unit => unit.id === state.organizationId) ? state.organizationId! : "");
+      setCommitteeSelection((state.committeeSelection ?? []).filter(id => organizers.some(person => person.id === id)));
       setSelection((state.selection ?? []).filter(id => organizers.some(person => person.id === id)));
       setSelectedFunds((state.selectedFunds ?? []).filter(id => funds.some(fund => fund.id === id)));
       setFundAmounts(state.fundAmounts ?? {});
       setActivityId(activities.some(activity => activity.id === state.activityId) ? state.activityId! : "");
-      const budget = saved.entries.find(([name]) => name === "eventBudget")?.[1];
-      if (typeof budget === "string") { setRestoredBudget(JSON.parse(budget)); setBudgetVersion(version => version + 1); }
     });
   const activity = activities.find(item => item.id === activityId);
   const funding = kind === "funding";
-  const committees = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].sort();
   const fundOptions = funds.filter(fund => (!activity || !fund.unitId || fund.unitId === activity.unitId) && (fund.remainingCents > 0 || selectedFunds.includes(fund.id))).map(fund => ({
     id: fund.id, name: fund.name, committee: `${fund.unitName ? fund.unitName + " · " : ""}${formatUsd(fund.remainingCents)} left`,
   }));
@@ -47,6 +44,10 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
     if (pending) return;
     if (funding && (!activity || activity.fundingBlockedReason)) {
       setResult({ error: activity?.fundingBlockedReason ?? "Select an event or activity before requesting funds." });
+      return;
+    }
+    if (!funding && !committeeSelection.length) {
+      setResult({ error: "Select at least one registered volunteer for the organizing committee." });
       return;
     }
     const form = event.currentTarget;
@@ -92,13 +93,13 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
       }
       await draft.clear();
       form.reset();
-      setRestoredBudget(undefined);
       setActivityId("");
       setSelection([]);
+      setCommitteeSelection([]);
+      setOrganizationId("");
       setSelectedFunds([]);
       setFundAmounts({});
       setResult({ id: body.id });
-      setBudgetVersion(version => version + 1);
       router.refresh();
     } catch {
       setResult({ error: "The site could not be reached. Your entries are still here. Please try again." });
@@ -109,30 +110,25 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
 
   return (
     <form ref={formRef} onChange={draft.changed} onClick={draft.changed} onSubmit={submit} className={`mt-6 space-y-4 text-sm ${funding ? "@container" : ""}`} aria-label={funding ? "Funding request" : "Event/activity submission"}>
-      <p role="status" className="text-sm text-ink-soft">{draft.status}</p>
+      {(draft.status.includes("could not") || draft.status.includes("unavailable")) && <p role="alert" className="text-sm text-red-700">{draft.status}</p>}
       <fieldset disabled={!draft.ready} className="contents">
       <input type="hidden" name="kind" value={kind} />
-      {!funding && <section className="rounded-xl border border-line p-4"><h3 className="mb-4 font-semibold">Event budget</h3><EventBudgetFields key={budgetVersion} initial={restoredBudget} totalOnly /></section>}
       <div className={funding ? "relative grid gap-5 @min-[440px]:grid-cols-2 @min-[440px]:before:pointer-events-none @min-[440px]:before:absolute @min-[440px]:before:inset-y-0 @min-[440px]:before:start-1/2 @min-[440px]:before:border-s @min-[440px]:before:border-line @min-[800px]:gap-8" : undefined}>
         <div className={`min-w-0 space-y-4 ${funding ? "@min-[440px]:flex @min-[440px]:flex-col" : ""}`}>
           {funding && <h3 className="font-display text-lg font-bold text-navy">Activity and funding details</h3>}
           {funding ? (
-            <label className="block font-semibold">
-              Event or activity
-              <select name="fundingEventId" className={field} required value={activityId} onChange={event => {
-                const id = event.target.value;
+            <div>
+              <RequestPicker name="fundingEventId" label="Event or activity" placeholder="Select an event or activity" searchLabel="Search your events and activities" emptyMessage="Create an event or activity before requesting funds." options={activities.map(item => ({ id: item.id, name: item.title, committee: item.date }))} selectedIds={activityId ? [activityId] : []} onChange={ids => {
+                const id = ids[0] ?? "";
                 setActivityId(id);
                 const unitId = activities.find(item => item.id === id)?.unitId;
-                setSelectedFunds(current => current.filter(id => {
-                  const fund = funds.find(item => item.id === id);
+                setSelectedFunds(current => current.filter(fundId => {
+                  const fund = funds.find(item => item.id === fundId);
                   return fund && (!fund.unitId || fund.unitId === unitId);
                 }));
-              }}>
-                <option value="" disabled>Select an event or activity</option>
-                {activities.map(item => <option key={item.id} value={item.id}>{item.title} · {item.date}</option>)}
-              </select>
-              {activity?.fundingBlockedReason && <span role="status" className="mt-2 block font-normal text-red-700">{activity.fundingBlockedReason}</span>}
-            </label>
+              }} field={field} multiple={false} />
+              {activity?.fundingBlockedReason && <p role="status" className="mt-2 text-sm text-red-700">{activity.fundingBlockedReason}</p>}
+            </div>
           ) : (
             <label className="block font-semibold">
               Event or activity title
@@ -141,13 +137,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           )}
           <div className={`grid gap-4 ${funding ? "@min-[800px]:grid-cols-2" : "sm:grid-cols-2"}`}>
             {!funding && (
-              <label className="block min-w-0 font-semibold">
-                Organizing committee
-                <input name="committee" list="event-committees" className={field} maxLength={150} required />
-                <datalist id="event-committees">
-                  {committees.map(committee => <option key={committee} value={committee} />)}
-                </datalist>
-              </label>
+              <RequestPicker name="committeeOrganizer" label="Organizing committee" placeholder="Select organizing committee" searchLabel="Search registered volunteers" emptyMessage="No registered volunteers are available." options={organizers} selectedIds={committeeSelection} onChange={setCommitteeSelection} field={field} />
             )}
             {funding && (
               <label className="block min-w-0 font-semibold">
@@ -175,15 +165,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           {!funding && (
             <>
               <p className="text-sm text-ink-soft">You’ll be listed as the event lead and can record hours for the volunteers selected below once the event ends.</p>
-              {eventUnits.length > 0 && (
-                <label className="block font-semibold">
-                  Organization (required for funding)
-                  <select name="eventUnitId" className={field}>
-                    <option value="">No unit</option>
-                    {eventUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
-                  </select>
-                </label>
-              )}
+              <RequestPicker name="eventUnitId" label="Organization (required for funding)" placeholder="Select organization" searchLabel="Search organizations" emptyMessage="No organizations are available yet." options={eventUnits.map(unit => ({ id: unit.id, name: unit.label }))} selectedIds={organizationId ? [organizationId] : []} onChange={ids => setOrganizationId(ids[0] ?? "")} field={field} multiple={false} />
             </>
           )}
           <RequestPicker name="organizer" label={funding ? "Organizing committee" : "Volunteers"} placeholder="Select volunteers"

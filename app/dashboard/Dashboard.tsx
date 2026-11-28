@@ -7,9 +7,6 @@ import { getTeamAccess } from "@/lib/session";
 import { organizerOptions } from "@/lib/volunteer-roster";
 import { volunteerEvents, volunteerSubmissions } from "@/lib/volunteer-store";
 import VolunteerSectionTabs from "./VolunteerSectionTabs";
-import EventBudgetPlanner from "./EventBudgetPlanner";
-import type { EventBudget } from "@/lib/event-budget";
-import { readIntakeJson } from "@/lib/volunteer-store";
 import VolunteerForm from "@/app/components/VolunteerForm";
 import { cookies } from "next/headers";
 import { googleAvatarCookie, googleAvatarUrl, googleDisplayName, googleDisplayNameCookie } from "@/lib/google-avatar";
@@ -60,11 +57,10 @@ export default async function Dashboard({ email, params }: { email: string; para
   const eventUnits = current.id === "events" ? await volunteerUnits() : [];
   const organizers = funding || current.id === "events" ? await organizerOptions() : [];
   const [records, activityEntries, fundingActivities] = await Promise.all([
-    current.id === "overview" || current.id === "events" || current.id === "funding" ? volunteerSubmissions(email) : [],
+    current.id === "overview" || current.id === "funding" ? volunteerSubmissions(email) : [],
     current.id === "overview" ? volunteerHours(email) : [],
     funding ? volunteerEvents() : [],
   ]);
-  const eventBudgets = current.id === "events" ? await Promise.all(records.filter(record => record.kind === "event").map(async event => ({ event, budget: await readIntakeJson<EventBudget>(`event-budgets/${event.id}.json`) }))) : [];
   const reportStatuses = await fundingReportStatuses(records.filter(record => record.kind === "funding").map(record => record.id));
   const eventCount = records.filter(record => record.kind === "event").length;
 
@@ -197,8 +193,7 @@ export default async function Dashboard({ email, params }: { email: string; para
               </>
             ) :
               current.id === "team" && access ? <TeamView access={access} status={team} /> : (
-                <VolunteerSectionTabs section="events" initial="submission" tabs={[
-                  { id: "submission", label: "Event submission", content: <div className="space-y-5"><section className="panel">
+                <div className="space-y-5"><section className="panel">
                     <h2 className="panel-title">Event/activity submission</h2>
                     <VolunteerForm kind="event" contactEmail={email} organizers={organizers} eventUnits={eventUnits.map(({ id, label }) => ({ id, label }))} />
                   </section>
@@ -206,9 +201,7 @@ export default async function Dashboard({ email, params }: { email: string; para
                     <h2 className="panel-title">Public calendar</h2>
                     <p className="my-3 text-ink-soft">Submissions go to IEEE Rwanda for review. Approved events and activities can be added to the public calendar.</p>
                     <a className="action-link" href="https://www.ieeerwanda.org/events">Browse and subscribe</a>
-                  </aside></div> },
-                  { id: "budgets", label: "Budget planner", content: (<section className="panel"><h2 className="panel-title">Your event budgets</h2><p className="mt-2 text-sm text-ink-soft">Plan each activity’s expenses and funding in RWF and USD.</p><div className="mt-4 space-y-3">{eventBudgets.map(({ event, budget }) => <details key={event.id} className="rounded-xl border border-line p-4"><summary className="cursor-pointer font-semibold text-navy">{event.title}</summary><EventBudgetPlanner email={email} id={event.id} initial={budget ?? event.eventBudget} /></details>)}</div>{!eventBudgets.length && <p className="mt-4 text-sm text-ink-soft">Create an event or activity to start planning its budget.</p>}</section>) },
-                ]} />
+                  </aside></div>
             )}
           </>
         )}

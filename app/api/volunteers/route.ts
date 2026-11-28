@@ -1,4 +1,3 @@
-import { parseEventBudget } from "@/lib/event-budget";
 import { receiptDriveEnabled, trashDriveReceipt, uploadDriveReceipt } from "@/lib/receipt-drive";
 import { randomUUID } from "node:crypto";
 import { attachmentCount, attachmentLimit, fundingRequestAttachmentCount, type Organizer, type Submission } from "@/lib/volunteer-intake";
@@ -141,7 +140,6 @@ export async function POST(request: Request) {
   const email = field("email");
   const leadVolunteerName = field("leadVolunteerName");
   let committee = field("committee");
-  let organizers: Organizer[] | undefined;
   let eventVolunteerEmails: string[] | undefined;
   const eventUnitId = field("eventUnitId");
   const details = field("details");
@@ -162,7 +160,6 @@ export async function POST(request: Request) {
     return bad("Enter an end time after the start time and a location.");
   }
   if (!webLink(vtools)) return bad("Enter a valid vTools event link starting with https:// or http://.");
-  if (kind === "event" && (!committee || committee.length > 150)) return bad("Enter the organizing committee.");
   if (kind === "event" && eventUnitId && !(await volunteerUnits()).some(unit => unit.id === eventUnitId)) {
     return bad("Select an existing unit for this event.");
   }
@@ -192,16 +189,16 @@ export async function POST(request: Request) {
     amount = formatUsd(total);
   }
   const chosen = new Set(form.getAll("organizer"));
-  if (kind === "funding" && !chosen.size) return bad("Select at least one volunteer for the organizing committee.");
-  if (chosen.size) {
-    const selected = (await organizerDirectory()).filter(member => chosen.has(member.id));
-    if (selected.length !== chosen.size) return bad("A selected volunteer is no longer listed. Refresh and select again.");
-    organizers = selected.map(({ name, committee }) => ({ name, committee }));
-    if (kind === "event") eventVolunteerEmails = selected.map(member => member.email);
-    if (kind === "funding") {
-      committee = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].join(", ") || "Volunteers";
-    }
-  }
+  const committeeChosen = kind === "event" ? new Set(form.getAll("committeeOrganizer")) : chosen;
+  if (!committeeChosen.size) return bad("Select at least one registered volunteer for the organizing committee.");
+  if (chosen.size > 200 || committeeChosen.size > 200) return bad("Select up to 200 volunteers.");
+  const directory = await organizerDirectory();
+  const selected = directory.filter(member => chosen.has(member.id));
+  const committeeMembers = directory.filter(member => committeeChosen.has(member.id));
+  if (selected.length !== chosen.size || committeeMembers.length !== committeeChosen.size) return bad("A selected volunteer is no longer registered. Refresh and select again.");
+  const organizers: Organizer[] = committeeMembers.map(({ name, committee }) => ({ name, committee }));
+  committee = [...new Set(organizers.flatMap(member => member.committee ? [member.committee] : []))].join(", ") || "Volunteers";
+  if (kind === "event") eventVolunteerEmails = [...new Set([...committeeMembers, ...selected].map(member => member.email))];
 
   const budget = filesFrom(form, "budget");
   const invoice = filesFrom(form, "invoice");
@@ -229,15 +226,10 @@ export async function POST(request: Request) {
     uploads.push({ name, bytes });
   }
 
-  let eventBudget;
-  if (kind === "event") {
-    try { eventBudget = parseEventBudget(JSON.parse(field("eventBudget"))); } catch { return bad("Enter a valid event budget."); }
-    if (!eventBudget) return bad("Enter a valid event budget and complete each budget item.");
-  }
   const id = randomUUID();
   const record: Submission = {
     id, kind, receivedAt: new Date().toISOString(), submittedBy: volunteer, title, email, committee, details, date, organizers, vtools,
-    ...(kind === "event" ? { end, location, eventBudget, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
+    ...(kind === "event" ? { end, location, eventVolunteerEmails, eventUnitId: eventUnitId || undefined, vtoolsAcknowledgedAt: new Date().toISOString() } : { amount, leadVolunteerName, fundingEventId: activity?.id, fundAllocations, invoiceCount: invoice.length, receiptFormatAcknowledged: true, receiptsAcknowledgedAt: new Date().toISOString() }),
     attachments: uploads.map(upload => upload.name),
   };
   const saved: string[] = [];

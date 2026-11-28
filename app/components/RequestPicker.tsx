@@ -3,9 +3,10 @@
 import { useId, useRef, useState, type ReactNode } from "react";
 import type { OrganizerOption } from "@/lib/volunteer-intake";
 
-export default function RequestPicker({ name, label, placeholder, searchLabel, emptyMessage, options, selectedIds, onChange, field, renderSelected, summary }: {
+export default function RequestPicker({ name, label, placeholder, searchLabel, emptyMessage, options, selectedIds, onChange, field, renderSelected, summary, multiple = true }: {
   name: string; label: string; placeholder: string; searchLabel: string; emptyMessage: string;
   options: OrganizerOption[]; selectedIds: string[]; onChange: (ids: string[]) => void; field: string;
+  multiple?: boolean;
   renderSelected?: (option: OrganizerOption) => ReactNode;
   summary?: (option: OrganizerOption) => string;
 }) {
@@ -65,7 +66,7 @@ export default function RequestPicker({ name, label, placeholder, searchLabel, e
                     checked={selectedIds.includes(member.id)}
                     onChange={event => {
                       const checked = event.target.checked;
-                      onChange(checked ? [...selectedIds, member.id] : selectedIds.filter(id => id !== member.id));
+                      onChange(checked ? multiple ? [...selectedIds, member.id] : [member.id] : selectedIds.filter(id => id !== member.id));
                     }}
                   />
                   <span className="min-w-0">

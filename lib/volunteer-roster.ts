@@ -65,7 +65,8 @@ export async function teamRoster(access: { role: "admin" } | { role: "lead"; com
 export async function organizerDirectory() {
   const secret = process.env.VOLUNTEER_SESSION_SECRET;
   if (!secret || secret.length < 32) return [];
-  return (await roster()).map(({ email, name, committee }) => ({
+  const registered = new Set((await accountRoster()).map(member => member.email));
+  return (await roster()).filter(member => registered.has(member.email)).map(({ email, name, committee }) => ({
     id: createHmac("sha256", secret).update("funding-organizer:" + email).digest("hex"),
     email,
     name,
