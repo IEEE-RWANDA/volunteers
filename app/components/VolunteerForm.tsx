@@ -266,7 +266,7 @@ export default function VolunteerForm({ kind, contactEmail, organizers = [], fun
           <span>I have added IEEE Rwanda as a collaborator in vTools and set <strong>gentille.uwera@ieee.org</strong> as the contact email. I understand that Gentille Uwera will be contacted during funding clearance to confirm the collaborator and contact email in vTools.</span>
         </label>
       )}
-      <div className={`flex justify-center ${funding ? "py-6" : ""}`}>
+      <div className="flex justify-center py-6">
         <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={pending || (funding && (!activity || Boolean(activity.fundingBlockedReason) || !organizers.length || !fundOptions.length))}>
           {pending ? "Submitting…" : funding ? "Submit funding request" : "Submit event or activity"}
         </button>
