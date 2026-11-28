@@ -2,8 +2,10 @@ import { volunteerEvents } from "@/lib/volunteer-store";
 import { volunteerUnits } from "@/lib/volunteer-units";
 import { accountRoster } from "@/lib/session";
 import { calendarReviewAccess, calendarReviewers } from "@/lib/calendar-reviewers";
-import { decideCalendarEvent, updateCalendarReviewer } from "./calendar-review-actions";
+import { updateCalendarReviewer } from "./calendar-review-actions";
 import { calendarConfigured, eventCalendarDecision } from "@/lib/event-calendar";
+import ActionModal from "./ActionModal";
+import CalendarEventActions from "./CalendarEventActions";
 
 const calendarMessages: Record<string, string> = {
   "calendar-approved": "Event approved. It can now be published to the public calendar.",
@@ -71,7 +73,8 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                 <tr>
                   <th scope="col" className="px-3 py-2">Activity</th>
                   <th scope="col" className="px-3 py-2">Calendar status</th>
-                  <th scope="col" className="px-3 py-2">Schedule and venue</th>
+                  <th scope="col" className="px-3 py-2">Schedule (CAT)</th>
+                  <th scope="col" className="px-3 py-2">Location</th>
                   <th scope="col" className="px-3 py-2">Organizers</th>
                   <th scope="col" className="px-3 py-2">vTools</th>
                 </tr>
@@ -81,21 +84,48 @@ export default async function AdminEvents({ viewer, status }: { viewer: string; 
                   const decision = decisions.get(event.id);
                   return (
                   <tr id={`activity-${event.id}`} className="scroll-mt-5 align-top target:bg-paper-2" key={event.id}>
-                    <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">{event.title}</th>
+                    <th scope="row" className="wrap-anywhere px-3 py-3 font-semibold text-navy">
+                      <ActionModal label={`View ${event.title}`} title={event.title} icon="role" trigger={<span>{event.title}</span>}>
+                        <div className="space-y-4 text-sm font-normal">
+                          <div><h3 className="font-semibold text-navy">Description</h3><p className="mt-1 whitespace-pre-wrap wrap-anywhere text-ink-soft">{event.details || "Not provided"}</p></div>
+                          <div className="overflow-hidden rounded-lg border border-line">
+                            <table className="w-full table-fixed text-left text-sm" aria-label="Submitted event details">
+                              <thead className="bg-paper-2 text-navy"><tr><th scope="col" className="w-[38%] px-3 py-2">Field</th><th scope="col" className="px-3 py-2">Details</th></tr></thead>
+                              <tbody className="divide-y divide-line">
+                                {[
+                                  { label: "Starts (CAT)", value: event.date.replace("T", " ") || "Not provided" },
+                                  { label: "Ends (CAT)", value: event.end?.replace("T", " ") || "Not provided" },
+                                  { label: "Location", value: event.location || "Not provided" },
+                                  { label: "Organization", value: unitNames.get(event.eventUnitId ?? "") ?? (event.committee || "Not provided") },
+                                  { label: "Submitted by / event lead", value: event.submittedBy },
+                                  { label: "Contact email", value: event.email || "Not provided" },
+                                  { label: "Organizing committee", value: event.organizers?.map(person => person.name).join(", ") || event.committee || "Not provided" },
+                                  { label: "Selected volunteers", value: event.eventVolunteerEmails?.length ? <ul className="space-y-1">{event.eventVolunteerEmails.map(email => <li key={email}>{email}</li>)}</ul> : "No additional volunteers selected." },
+                                  { label: "vTools", value: event.vtools ? <a className="action-link" href={event.vtools} target="_blank" rel="noreferrer">Open vTools event</a> : "Not provided" },
+                                  { label: "vTools acknowledgement", value: event.vtoolsAcknowledgedAt ? "IEEE Rwanda collaborator and contact email confirmed." : "Not recorded" },
+                                  { label: "Submitted (CAT)", value: new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Kigali" }).format(new Date(event.receivedAt)) },
+                                ].map(row => <tr key={row.label}><th scope="row" className="wrap-anywhere px-3 py-3 align-top font-semibold text-navy">{row.label}</th><td className="whitespace-pre-wrap wrap-anywhere px-3 py-3 align-top text-ink-soft">{row.value}</td></tr>)}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </ActionModal>
+                    </th>
                     <td className="px-3 py-3">
-                      <span className="inline-block rounded-full bg-paper-2 px-2.5 py-1 text-xs font-semibold text-navy">{decision?.publishedAt ? "Published to calendar" : decision ? "Approved" : "Awaiting calendar decision"}</span>
-                      {decision?.calendarUrl && <a className="action-link mt-2 block text-sm" href={decision.calendarUrl} target="_blank" rel="noreferrer">View calendar event</a>}
-                      {permission.canReview && !decision?.publishedAt && <form action={decideCalendarEvent} className="mt-3 flex flex-wrap gap-2">
-                        <input type="hidden" name="eventId" value={event.id} />
-                        <button className="btn border border-line text-blue" name="decision" value="approve">{decision ? "Reapprove event" : "Approve event"}</button>
-                        {decision && <button className="btn btn-primary" name="decision" value="publish">Publish to calendar</button>}
-                      </form>}
+                      <div className="flex min-w-32 flex-col items-start gap-2.5">
+                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${decision?.publishedAt ? "bg-emerald-50 text-emerald-800" : decision ? "bg-sky-50 text-sky-800" : "bg-amber-50 text-amber-800"}`}>
+                          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+                          {decision?.publishedAt ? "Published" : decision ? "Approved" : "Needs review"}
+                        </span>
+                        {decision?.calendarUrl && <a className="action-link inline-flex items-center gap-1 text-xs" href={decision.calendarUrl} target="_blank" rel="noreferrer">View in calendar <span aria-hidden="true">↗</span></a>}
+                        {permission.canReview && !decision?.publishedAt && <CalendarEventActions eventId={event.id} approved={Boolean(decision)} />}
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-ink-soft">
                       <time className="whitespace-nowrap" dateTime={event.date}>{event.date.replace("T", " ")}</time>
                       {event.end && <> – <time className="whitespace-nowrap" dateTime={event.end}>{event.end.replace("T", " ")}</time></>}
-                      {event.location && <p className="mt-1">{event.location}</p>}
                     </td>
+                    <td className="wrap-anywhere px-3 py-3 text-ink-soft">{event.location || "Not provided"}</td>
                     <td className="wrap-anywhere px-3 py-3 text-ink-soft">
                       <p>{unitNames.get(event.eventUnitId ?? "") ?? event.committee}</p>
                       <p className="mt-1">{event.submittedBy}</p>
