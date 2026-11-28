@@ -9,16 +9,17 @@ import { treasuryHistoryOwner } from "./TreasuryHistory";
 import { roster } from "@/lib/volunteer-roster";
 import { volunteerUnits } from "@/lib/volunteer-units";
 import { listedFunds } from "@/lib/listed-funds";
-import { assignBalanceFund } from "./treasury-actions";
-import { readIntakeJson } from "@/lib/volunteer-store";
+import { assignBalanceFund, assignReleaseEvent } from "./treasury-actions";
+import { readIntakeJson, volunteerEvents } from "@/lib/volunteer-store";
 import { fundReleaseDetails } from "@/lib/fund-release-details";
 
 export default async function AdminFundBalances({ email, status }: { email: string; status?: string }) {
   if (email !== treasuryHistoryOwner) return null;
-  const [{ rows, warnings }, releases, volunteers, units, funds, history, baseline] = await Promise.all([
+  const [{ rows, warnings }, releases, volunteers, units, funds, history, baseline, events] = await Promise.all([
     treasuryBalances(), treasuryReleaseHistory(), roster(), volunteerUnits(), listedFunds(),
     readIntakeJson<{ payments: { id: string; title: string; details: string[] }[]; activities?: { details: string[]; paymentIds?: string[] }[] }>("treasury-history/ieee-rwanda.json"),
     readIntakeJson<{ includedRequestIds: string[]; includedPaymentIds: number[] }>("treasury-history/fund-balances.json"),
+    volunteerEvents(),
   ]);
   const releaseDetails = fundReleaseDetails(rows, history?.payments ?? [], releases, funds,
     { includedRequestIds: baseline?.includedRequestIds ?? [], includedPaymentIds: baseline?.includedPaymentIds ?? [] }, history?.activities);
@@ -33,6 +34,8 @@ export default async function AdminFundBalances({ email, status }: { email: stri
       <h2 id="fund-balances" className="panel-title">Fund balances</h2>
       {status === "fund-assignment-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Select an existing volunteer and unit for a fund with an available balance.</p>}
       {status === "fund-assignment-write" && <p role="alert" className="mt-2 text-sm text-red-700">The assignment could not be saved. Refresh and check the current assignment before retrying.</p>}
+      {status === "release-event-invalid" && <p role="alert" className="mt-2 text-sm text-red-700">Select an existing release and event.</p>}
+      {status === "release-event-write" && <p role="alert" className="mt-2 text-sm text-red-700">The event assignment could not be saved. Refresh and retry.</p>}
       <FundBalanceTabs balances={<>
       {warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm text-red-700">{warning}</p>)}
       <FundBalancesTable volunteers={[...filterVolunteers].map(([id, label]) => ({ id, label }))} units={units.map(unit => ({ id: unit.id, label: unit.label }))} rows={rows.map(row => {
@@ -101,7 +104,21 @@ export default async function AdminFundBalances({ email, status }: { email: stri
               </tr>
               ) };
             })} />
-      </>} releases={<FundReleaseHistory rows={releases} />} />
+      </>} releases={<FundReleaseHistory rows={releases} assignmentControls={Object.fromEntries(releases.map(release => [release.id,
+        <ActionModal key={release.id} compact icon={release.eventId ? "edit" : "plus"} label={`${release.eventId ? "Edit event for" : "Assign event to"} ${release.title}`} title="Assign release to an event">
+          <p className="mb-4 text-sm text-ink-soft">{release.title} · {release.amount}</p>
+          <form action={assignReleaseEvent} className="space-y-4">
+            <input type="hidden" name="releaseId" value={release.id} />
+            <label className="block text-sm font-semibold">Event or activity
+              <select className="login-input" name="eventId" defaultValue={release.eventId ?? ""}>
+                <option value="">Unassigned</option>
+                {events.map(event => <option key={event.id} value={event.id}>{event.title} · {event.date.slice(0, 10)}</option>)}
+              </select>
+            </label>
+            <button type="submit" className="btn btn-primary">Save</button>
+          </form>
+        </ActionModal>
+      ]))} />} />
     </section>
   );
 }

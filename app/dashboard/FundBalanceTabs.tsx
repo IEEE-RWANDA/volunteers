@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function FundBalanceTabs({ balances, releases }: { balances: ReactNode; releases: ReactNode }) {
-  const [current, setCurrent] = useState("balances");
+  const params = useSearchParams();
+  const [current, setCurrent] = useState(params.get("view") === "releases" ? "releases" : "balances");
   return (
     <>
       <div className="mt-4 flex flex-wrap justify-center gap-1" aria-label="Fund balances views" role="group">
